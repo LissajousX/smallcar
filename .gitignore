@@ -1,0 +1,19 @@
+# Keil uVision 输出
+example/
+smallcar_keil/Objects/
+smallcar_keil/Listings/
+smallcar_keil/DebugConfig/
+smallcar_keil/RTE/_Target_1/
+
+*.axf
+*.lnp
+*.dep
+*.crf
+*.d
+*.o
+*.map
+*.htm
+*.lst
+
+# Keil GUI 布局文件（没必要入库）
+*.uvguix.*
