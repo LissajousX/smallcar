@@ -62,10 +62,10 @@
 
 | 控制对象 | 功能       | 按键             | 模式 | 说明 |
 |----------|------------|------------------|------|------|
-| Yaw      | 向左微调   | 方块 `PINK`      | M0/M1 | 每帧 Yaw 角度减 `SERVO_STEP_ANGLE`，限幅 `[YAW_MIN, YAW_MAX]` |
-| Yaw      | 向右微调   | 圆圈 `RED`       | M0/M1 | 每帧 Yaw 角度加 `SERVO_STEP_ANGLE` |
-| Pitch    | 抬头       | 三角 `GREEN`     | M0/M1 | 每帧 Pitch 角度加步进，限幅 `[PITCH_MIN, PITCH_MAX]` |
-| Pitch    | 低头       | 叉号 `BLUE`      | M0/M1 | 每帧 Pitch 角度减步进 |
+| Yaw      | 向右微调   | 方块 `PINK`      | M0/M1 | 每帧 Yaw 角度加 `SERVO_STEP_ANGLE`，限幅 `[YAW_MIN, YAW_MAX]` |
+| Yaw      | 向左微调   | 圆圈 `RED`       | M0/M1 | 每帧 Yaw 角度减 `SERVO_STEP_ANGLE` |
+| Pitch    | 低头       | 三角 `GREEN`     | M0/M1 | 每帧 Pitch 角度减步进，限幅 `[PITCH_MIN, PITCH_MAX]` |
+| Pitch    | 抬头       | 叉号 `BLUE`      | M0/M1 | 每帧 Pitch 角度加步进 |
 
 - 当前参数：
   - `SERVO_STEP_ANGLE = 2°`
@@ -83,10 +83,10 @@
 
 在 M1（`Data[1] = 0x73`）下，右摇杆模拟轴参与云台控制：
 
-- `RX < 0x70`：Yaw 向左（每帧减步进）。
-- `RX > 0x90`：Yaw 向右。
-- `RY < 0x70`：Pitch 抬头。
-- `RY > 0x90`：Pitch 低头。
+- `RX < 0x70`：Yaw 向右（每帧加步进）。
+- `RX > 0x90`：Yaw 向左。
+- `RY < 0x70`：Pitch 低头。
+- `RY > 0x90`：Pitch 抬头。
 
 彩色键与右摇杆可以叠加使用，右摇杆提供更平滑的手感，彩色键提供精确单步控制。
 

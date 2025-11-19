@@ -151,20 +151,11 @@ int main(void)
             ry = 0x80U;
         }
 
-        /* 1. 云台控制：右侧彩色键 + （模拟模式下）右摇杆，R2 一键回中 */
+        /* 1. 云台控制：右侧彩色键 + （模拟模式下）右摇杆，R2 一键回中
+         * 当前方向：方块=Yaw 右，圆圈=Yaw 左，三角=Pitch 下，叉号=Pitch 上 */
         if (ps2_get_key_state(PSB_PINK))
         {
-            if (yaw_angle > YAW_MIN_ANGLE + SERVO_STEP_ANGLE)
-            {
-                yaw_angle -= SERVO_STEP_ANGLE;
-            }
-            else
-            {
-                yaw_angle = YAW_MIN_ANGLE;
-            }
-        }
-        if (ps2_get_key_state(PSB_RED))
-        {
+            /* 方块：Yaw 向右 */
             if (yaw_angle + SERVO_STEP_ANGLE < YAW_MAX_ANGLE)
             {
                 yaw_angle += SERVO_STEP_ANGLE;
@@ -174,19 +165,21 @@ int main(void)
                 yaw_angle = YAW_MAX_ANGLE;
             }
         }
-        if (ps2_get_key_state(PSB_GREEN))
+        if (ps2_get_key_state(PSB_RED))
         {
-            if (pitch_angle + SERVO_STEP_ANGLE < PITCH_MAX_ANGLE)
+            /* 圆圈：Yaw 向左 */
+            if (yaw_angle > YAW_MIN_ANGLE + SERVO_STEP_ANGLE)
             {
-                pitch_angle += SERVO_STEP_ANGLE;
+                yaw_angle -= SERVO_STEP_ANGLE;
             }
             else
             {
-                pitch_angle = PITCH_MAX_ANGLE;
+                yaw_angle = YAW_MIN_ANGLE;
             }
         }
-        if (ps2_get_key_state(PSB_BLUE))
+        if (ps2_get_key_state(PSB_GREEN))
         {
+            /* 三角：Pitch 向下 */
             if (pitch_angle > PITCH_MIN_ANGLE + SERVO_STEP_ANGLE)
             {
                 pitch_angle -= SERVO_STEP_ANGLE;
@@ -196,22 +189,25 @@ int main(void)
                 pitch_angle = PITCH_MIN_ANGLE;
             }
         }
+        if (ps2_get_key_state(PSB_BLUE))
+        {
+            /* 叉号：Pitch 向上 */
+            if (pitch_angle + SERVO_STEP_ANGLE < PITCH_MAX_ANGLE)
+            {
+                pitch_angle += SERVO_STEP_ANGLE;
+            }
+            else
+            {
+                pitch_angle = PITCH_MAX_ANGLE;
+            }
+        }
 
         if (Data[1] == 0x73U)
         {
+            /* 右摇杆左右控制 Yaw */
             if (rx < 0x70U)
             {
-                if (yaw_angle > YAW_MIN_ANGLE + SERVO_STEP_ANGLE)
-                {
-                    yaw_angle -= SERVO_STEP_ANGLE;
-                }
-                else
-                {
-                    yaw_angle = YAW_MIN_ANGLE;
-                }
-            }
-            else if (rx > 0x90U)
-            {
+                /* RX 小于 0x70：Yaw 向右 */
                 if (yaw_angle + SERVO_STEP_ANGLE < YAW_MAX_ANGLE)
                 {
                     yaw_angle += SERVO_STEP_ANGLE;
@@ -221,20 +217,23 @@ int main(void)
                     yaw_angle = YAW_MAX_ANGLE;
                 }
             }
-
-            if (ry < 0x70U)
+            else if (rx > 0x90U)
             {
-                if (pitch_angle + SERVO_STEP_ANGLE < PITCH_MAX_ANGLE)
+                /* RX 大于 0x90：Yaw 向左 */
+                if (yaw_angle > YAW_MIN_ANGLE + SERVO_STEP_ANGLE)
                 {
-                    pitch_angle += SERVO_STEP_ANGLE;
+                    yaw_angle -= SERVO_STEP_ANGLE;
                 }
                 else
                 {
-                    pitch_angle = PITCH_MAX_ANGLE;
+                    yaw_angle = YAW_MIN_ANGLE;
                 }
             }
-            else if (ry > 0x90U)
+
+            /* 右摇杆上下控制 Pitch */
+            if (ry < 0x70U)
             {
+                /* RY 小于 0x70：Pitch 向下（低头） */
                 if (pitch_angle > PITCH_MIN_ANGLE + SERVO_STEP_ANGLE)
                 {
                     pitch_angle -= SERVO_STEP_ANGLE;
@@ -242,6 +241,18 @@ int main(void)
                 else
                 {
                     pitch_angle = PITCH_MIN_ANGLE;
+                }
+            }
+            else if (ry > 0x90U)
+            {
+                /* RY 大于 0x90：Pitch 向上（抬头） */
+                if (pitch_angle + SERVO_STEP_ANGLE < PITCH_MAX_ANGLE)
+                {
+                    pitch_angle += SERVO_STEP_ANGLE;
+                }
+                else
+                {
+                    pitch_angle = PITCH_MAX_ANGLE;
                 }
             }
         }
