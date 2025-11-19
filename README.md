@@ -25,16 +25,6 @@ smallcar/
 │   └─ pins.md                 # 引脚定义汇总（电机/PS2/云台）
 ├─ .gitignore                  # Git 忽略规则
 ├─ README.md                   # 本项目说明
-│
-├─ example/                    # 参考示例工程（PS2 + 四轮差速遥控，来自示例代码）
-│   └─ ...
-│
-├─ smallcar_f103/              # 早期 STM32CubeIDE 工程（未继续使用）
-│   └─ .metadata, *.ioc 等
-│
-├─ smallcar_f103_1/            # 另一份 CubeIDE 工程草稿
-│   └─ smallcar_f103_1.ioc
-│
 └─ smallcar_keil/              # **当前主工程（Keil µVision5）**
     ├─ main.c                  # 主循环和 PS2 控制逻辑
     ├─ motor.c / motor.h       # 电机驱动（TB6612 + TIM3 PWM）

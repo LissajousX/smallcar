@@ -1,6 +1,5 @@
 # Keil uVision 输出
 example/
-smallcar_f103/
 smallcar_keil/Objects/
 smallcar_keil/Listings/
 smallcar_keil/DebugConfig/
