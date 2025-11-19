@@ -171,7 +171,7 @@ uint8_t ps2_key_serch(void)
     /* Data[3],Data[4] 对应 16 个按键，按下为 0，未按下为 1 */
     Handkey = ((uint16_t)Data[4] << 8) | (uint16_t)Data[3];
 
-    for (index = 4U; index < 16U; index++)
+    for (index = 0U; index < 16U; index++)
     {
         if ((Handkey & (1U << (MASK[index][0] - 1U))) == 0U)
         {

@@ -11,8 +11,8 @@ static uint16_t Servo_AngleToCCR(uint16_t angle)
         angle = 180U;
     }
 
-    /* 1.0ms + angle/180 * 1.0ms -> 1000~2000 */
-    pulse = 1000U + ((uint32_t)angle * 1000U) / 180U;
+    /* 约 0.6ms + angle/180 * 1.8ms -> 600~2400 */
+    pulse = 600U + ((uint32_t)angle * 10U);
 
     return (uint16_t)pulse;
 }
