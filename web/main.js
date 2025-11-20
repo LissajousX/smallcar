@@ -67,6 +67,16 @@
 
   const lastPayloadView = document.getElementById("last-payload");
 
+  const statusThrottle = document.getElementById("status-throttle");
+  const statusSteer = document.getElementById("status-steer");
+  const statusYaw = document.getElementById("status-yaw");
+  const statusPitch = document.getElementById("status-pitch");
+
+  const ovStatusThrottle = document.getElementById("ov-status-throttle");
+  const ovStatusSteer = document.getElementById("ov-status-steer");
+  const ovStatusYaw = document.getElementById("ov-status-yaw");
+  const ovStatusPitch = document.getElementById("ov-status-pitch");
+
   let ws = null;
   let sendTimer = null;
 
@@ -128,11 +138,53 @@
     wsStatus.className = `status ${cls}`;
   }
 
+  const keyToButton = {
+    KeyQ: btnDriveNW,
+    KeyW: btnForward,
+    KeyE: btnDriveNE,
+    KeyA: btnLeft,
+    KeyS: btnStop,
+    KeyD: btnRight,
+    KeyZ: btnDriveSW,
+    KeyX: btnBackward,
+    KeyC: btnDriveSE,
+    ArrowUp: btnGimbalUp,
+    ArrowDown: btnGimbalDown,
+    ArrowLeft: btnGimbalLeft,
+    ArrowRight: btnGimbalRight,
+    Space: btnCenterGimbal,
+    Digit1: btnSpeedGear,
+    Digit2: btnSpeedGear,
+    Digit3: btnSpeedGear,
+  };
+
+  function setKeyActive(code, active) {
+    const btn = keyToButton[code];
+    if (!btn) {
+      return;
+    }
+    if (active) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  }
+
   function updateLabels() {
     throttleValue.textContent = state.throttle;
     steerValue.textContent = state.steer;
     yawValue.textContent = state.yaw;
     pitchValue.textContent = state.pitch;
+
+    if (statusThrottle) statusThrottle.textContent = state.throttle;
+    if (statusSteer) statusSteer.textContent = state.steer;
+    if (statusYaw) statusYaw.textContent = state.yaw;
+    if (statusPitch) statusPitch.textContent = state.pitch;
+
+    if (ovStatusThrottle) ovStatusThrottle.textContent = state.throttle;
+    if (ovStatusSteer) ovStatusSteer.textContent = state.steer;
+    if (ovStatusYaw) ovStatusYaw.textContent = state.yaw;
+    if (ovStatusPitch) ovStatusPitch.textContent = state.pitch;
   }
 
   function getCurrentSpeed() {
@@ -248,6 +300,39 @@
     pitchInput.value = String(state.pitch);
     updateLabels();
     sendOnce();
+  }
+
+  function bindGimbalButton(el, dYaw, dPitch) {
+    if (!el) {
+      return;
+    }
+
+    let holdTimer = null;
+
+    const step = () => {
+      adjustGimbal(dYaw, dPitch);
+    };
+
+    el.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      step();
+      if (holdTimer) {
+        clearInterval(holdTimer);
+      }
+      holdTimer = setInterval(step, 80);
+    });
+
+    const endHandler = (e) => {
+      e.preventDefault();
+      if (holdTimer) {
+        clearInterval(holdTimer);
+        holdTimer = null;
+      }
+    };
+
+    el.addEventListener("pointerup", endHandler);
+    el.addEventListener("pointercancel", endHandler);
+    el.addEventListener("pointerleave", endHandler);
   }
 
   function buildPayload() {
@@ -455,18 +540,18 @@
   });
 
   if (btnGimbalUp && btnGimbalDown && btnGimbalLeft && btnGimbalRight) {
-    btnGimbalUp.addEventListener("click", () => adjustGimbal(0, GIMBAL_STEP));
-    btnGimbalDown.addEventListener("click", () => adjustGimbal(0, -GIMBAL_STEP));
-    btnGimbalLeft.addEventListener("click", () => adjustGimbal(-GIMBAL_STEP, 0));
-    btnGimbalRight.addEventListener("click", () => adjustGimbal(GIMBAL_STEP, 0));
+    bindGimbalButton(btnGimbalUp, 0, GIMBAL_STEP);
+    bindGimbalButton(btnGimbalDown, 0, -GIMBAL_STEP);
+    bindGimbalButton(btnGimbalLeft, -GIMBAL_STEP, 0);
+    bindGimbalButton(btnGimbalRight, GIMBAL_STEP, 0);
   }
 
   // 覆盖在视频上的云台控制按钮
   if (ovGimbalUp && ovGimbalDown && ovGimbalLeft && ovGimbalRight && ovGimbalCenter) {
-    ovGimbalUp.addEventListener("click", () => adjustGimbal(0, GIMBAL_STEP));
-    ovGimbalDown.addEventListener("click", () => adjustGimbal(0, -GIMBAL_STEP));
-    ovGimbalLeft.addEventListener("click", () => adjustGimbal(-GIMBAL_STEP, 0));
-    ovGimbalRight.addEventListener("click", () => adjustGimbal(GIMBAL_STEP, 0));
+    bindGimbalButton(ovGimbalUp, 0, GIMBAL_STEP);
+    bindGimbalButton(ovGimbalDown, 0, -GIMBAL_STEP);
+    bindGimbalButton(ovGimbalLeft, -GIMBAL_STEP, 0);
+    bindGimbalButton(ovGimbalRight, GIMBAL_STEP, 0);
     ovGimbalCenter.addEventListener("click", () => centerGimbal());
   }
 
@@ -537,6 +622,8 @@
 
     const code = e.code || e.key;
 
+    setKeyActive(code, true);
+
     // 方向键用于云台控制
     if (
       code === "ArrowUp" ||
@@ -601,6 +688,8 @@
 
   window.addEventListener("keyup", (e) => {
     const code = e.code || e.key;
+
+    setKeyActive(code, false);
 
     // 方向键用于云台控制，松开时不做额外处理
     if (

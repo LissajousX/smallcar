@@ -147,6 +147,11 @@ button {
   touch-action: manipulation;
 }
 
+button.active {
+  box-shadow: 0 0 0 2px #fbbf24;
+  background: #1f2937;
+}
+
 button:hover {
   background: #1f2937;
 }
@@ -207,6 +212,69 @@ button.danger:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.panel-status {
+  grid-column: 1 / -1;
+  padding: 8px 10px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.status-label {
+  color: #9ca3af;
+}
+
+.status-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+.status-payload {
+  max-height: 3em;
+  overflow: hidden;
+  word-break: break-all;
+}
+
+.panel-status h2 {
+  font-size: 14px;
+  margin: 0 0 4px;
+}
+
+.gimbal-status-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.overlay-status-chip {
+  position: absolute;
+  right: 16px;
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid #4b5563;
+  font-size: 12px;
+  pointer-events: none;
 }
 
 .panel-video .video-header {
@@ -674,6 +742,10 @@ button.danger:hover {
   .panel-controls,
   .panel-drive,
   .panel-gimbal {
+    display: none;
+  }
+
+  .panel-status {
     display: none;
   }
 }
