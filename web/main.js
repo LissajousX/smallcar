@@ -36,6 +36,26 @@
   const btnGimbalLeft = document.getElementById("btn-gimbal-left");
   const btnGimbalRight = document.getElementById("btn-gimbal-right");
 
+  // 覆盖在视频上的简化控制按钮（横屏低高度时使用）
+  const ovDriveForward = document.getElementById("ov-drive-forward");
+  const ovDriveBackward = document.getElementById("ov-drive-backward");
+  const ovDriveLeft = document.getElementById("ov-drive-left");
+  const ovDriveRight = document.getElementById("ov-drive-right");
+  const ovDriveStop = document.getElementById("ov-drive-stop");
+  const ovDriveNW = document.getElementById("ov-drive-nw");
+  const ovDriveNE = document.getElementById("ov-drive-ne");
+  const ovDriveSW = document.getElementById("ov-drive-sw");
+  const ovDriveSE = document.getElementById("ov-drive-se");
+
+  const ovSpeedGear = document.getElementById("ov-speed-gear");
+  const ovSpeedLabel = document.getElementById("ov-speed-label");
+
+  const ovGimbalUp = document.getElementById("ov-gimbal-up");
+  const ovGimbalDown = document.getElementById("ov-gimbal-down");
+  const ovGimbalLeft = document.getElementById("ov-gimbal-left");
+  const ovGimbalRight = document.getElementById("ov-gimbal-right");
+  const ovGimbalCenter = document.getElementById("ov-gimbal-center");
+
   const videoUrlInput = document.getElementById("video-url");
   const videoLoadBtn = document.getElementById("video-load-btn");
   const videoView = document.getElementById("video-view");
@@ -49,6 +69,9 @@
   const sendIntervalLabel = document.getElementById("send-interval-label");
   const lastPayloadView = document.getElementById("last-payload");
 
+  const btnSendIntervalDec = document.getElementById("btn-send-interval-dec");
+  const btnSendIntervalInc = document.getElementById("btn-send-interval-inc");
+
   let ws = null;
   let sendTimer = null;
 
@@ -58,6 +81,8 @@
     yaw: 90,
     pitch: 90,
   };
+
+  const VIDEO_PLACEHOLDER = "placeholder-video.svg";
 
   const DRIVE_SPEED = 80;
   const DRIVE_STEER_FULL = 100;
@@ -95,7 +120,9 @@
   }
 
   function setStatus(text, cls) {
-    wsStatus.textContent = text;
+    // 只用彩色圆点显示状态，把文字放在提示中
+    wsStatus.textContent = "";
+    wsStatus.title = text;
     wsStatus.className = `status ${cls}`;
   }
 
@@ -118,12 +145,14 @@
   }
 
   function updateSpeedGearLabel() {
-    if (!speedGearLabel) {
-      return;
-    }
     const idx = speedGearIndex;
     const label = SPEED_LABELS[idx] || SPEED_LABELS[1];
-    speedGearLabel.textContent = label;
+    if (speedGearLabel) {
+      speedGearLabel.textContent = label;
+    }
+    if (ovSpeedLabel) {
+      ovSpeedLabel.textContent = label;
+    }
   }
 
   function setSpeedGear(index) {
@@ -147,6 +176,26 @@
     sendIntervalInput.value = String(v);
     updateIntervalLabel();
     startSending();
+  }
+
+  // 横屏小高度时，自动把视频面板滚动到合适位置
+  function scrollVideoIntoViewIfLandscape() {
+    // 仅在横屏且高度较小时启用，阈值与 CSS 中的 max-height 一致
+    const isLandscape = window.matchMedia("(orientation: landscape)").matches;
+    if (!isLandscape || window.innerHeight > 520) {
+      return;
+    }
+
+    const videoPanel = document.querySelector(".panel-video");
+    if (!videoPanel) {
+      return;
+    }
+
+    const rect = videoPanel.getBoundingClientRect();
+    // 将视频面板顶端稍微留一点空隙地滚到视口内
+    const currentTop = window.pageYOffset || window.scrollY || 0;
+    const targetTop = Math.max(0, currentTop + rect.top - 8);
+    window.scrollTo({ top: targetTop, behavior: "smooth" });
   }
 
   function setDrive(throttle, steer) {
@@ -431,6 +480,15 @@
     btnGimbalRight.addEventListener("click", () => adjustGimbal(GIMBAL_STEP, 0));
   }
 
+  // 覆盖在视频上的云台控制按钮
+  if (ovGimbalUp && ovGimbalDown && ovGimbalLeft && ovGimbalRight && ovGimbalCenter) {
+    ovGimbalUp.addEventListener("click", () => adjustGimbal(0, GIMBAL_STEP));
+    ovGimbalDown.addEventListener("click", () => adjustGimbal(0, -GIMBAL_STEP));
+    ovGimbalLeft.addEventListener("click", () => adjustGimbal(-GIMBAL_STEP, 0));
+    ovGimbalRight.addEventListener("click", () => adjustGimbal(GIMBAL_STEP, 0));
+    ovGimbalCenter.addEventListener("click", () => centerGimbal());
+  }
+
   function adjustThrottle(delta) {
     state.throttle = clamp(state.throttle + delta, -100, 100);
     throttleInput.value = String(state.throttle);
@@ -478,6 +536,17 @@
     bindDirectionButton(btnDriveSW, "BL");
     bindDirectionButton(btnDriveSE, "BR");
     bindDirectionButton(btnStop, "STOP");
+
+    // 覆盖在视频上的小车控制（仅在横屏低高度时可见），支持 8 个方向
+    if (ovDriveForward) bindDirectionButton(ovDriveForward, "F");
+    if (ovDriveBackward) bindDirectionButton(ovDriveBackward, "B");
+    if (ovDriveLeft) bindDirectionButton(ovDriveLeft, "SL");
+    if (ovDriveRight) bindDirectionButton(ovDriveRight, "SR");
+    if (ovDriveStop) bindDirectionButton(ovDriveStop, "STOP");
+    if (ovDriveNW) bindDirectionButton(ovDriveNW, "FL");
+    if (ovDriveNE) bindDirectionButton(ovDriveNE, "FR");
+    if (ovDriveSW) bindDirectionButton(ovDriveSW, "BL");
+    if (ovDriveSE) bindDirectionButton(ovDriveSE, "BR");
   }
 
   window.addEventListener("keydown", (e) => {
@@ -597,12 +666,31 @@
     startSending();
   });
 
-  if (btnSpeedGear && speedGearLabel) {
+  if (btnSendIntervalDec) {
+    btnSendIntervalDec.addEventListener("click", () => {
+      adjustSendInterval(-50);
+    });
+  }
+
+  if (btnSendIntervalInc) {
+    btnSendIntervalInc.addEventListener("click", () => {
+      adjustSendInterval(50);
+    });
+  }
+
+  if (btnSpeedGear) {
     btnSpeedGear.addEventListener("click", () => {
       setSpeedGear((speedGearIndex + 1) % SPEED_LEVELS.length);
     });
-    updateSpeedGearLabel();
   }
+
+  if (ovSpeedGear) {
+    ovSpeedGear.addEventListener("click", () => {
+      setSpeedGear((speedGearIndex + 1) % SPEED_LEVELS.length);
+    });
+  }
+
+  updateSpeedGearLabel();
 
   wsBtn.addEventListener("click", () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -615,4 +703,28 @@
   // 初始 UI 状态
   updateLabels();
   updateIntervalLabel();
+
+  // 视频预览加载按钮
+  if (videoLoadBtn && videoUrlInput && videoView) {
+    // 如果加载失败，回退到占位图
+    videoView.addEventListener("error", () => {
+      if (!videoView.src.includes(VIDEO_PLACEHOLDER)) {
+        videoView.src = VIDEO_PLACEHOLDER;
+      }
+    });
+
+    videoLoadBtn.addEventListener("click", () => {
+      const url = videoUrlInput.value.trim();
+      if (!url) {
+        videoView.src = VIDEO_PLACEHOLDER;
+        return;
+      }
+      videoView.src = url;
+    });
+  }
+
+  // 页面加载与横竖屏切换时，自动把横屏小高度场景下的视频滚动到合适位置
+  window.addEventListener("load", scrollVideoIntoViewIfLandscape);
+  window.addEventListener("orientationchange", scrollVideoIntoViewIfLandscape);
+  window.addEventListener("resize", scrollVideoIntoViewIfLandscape);
 })();

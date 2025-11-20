@@ -8,6 +8,7 @@ body {
     Arial, sans-serif;
   background: #0f172a;
   color: #e5e7eb;
+  font-size: 14px; /* 全局基础字号 */
 }
 
 .top-bar {
@@ -53,14 +54,54 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 13px; /* 与 ws-config 统一为次级字号 */
+  justify-content: center;
 }
 
 .send-config input[type="range"] {
   max-width: 160px;
+  display: none;
 }
 
 .send-label {
+  white-space: nowrap;
+}
+
+.interval-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid #4b5563;
+  background: #020617;
+}
+
+.interval-btn {
+  position: relative;
+  width: 32px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.interval-btn .btn-main {
+  font-size: 16px;
+}
+
+.interval-btn .btn-key {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.send-interval-display {
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -87,17 +128,20 @@ button.danger:hover {
 }
 
 .status {
-  padding: 2px 6px;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  font-size: 12px;
+  margin-left: 4px;
+  font-size: 0; /* 隐藏文字，只显示灯 */
 }
 
 .status-disconnected {
-  background: #4b5563;
+  background: #b91c1c; /* 红灯：未连接 */
 }
 
 .status-connected {
-  background: #15803d;
+  background: #15803d; /* 绿灯：已连接 */
 }
 
 .status-error {
@@ -169,7 +213,7 @@ button.danger:hover {
 }
 
 .hint {
-  font-size: 12px;
+  font-size: 12px; /* 说明文字：再小一级 */
   color: #9ca3af;
 }
 
@@ -214,7 +258,75 @@ button.danger:hover {
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+}
+
+.video-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.overlay-panel {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 110px;
+}
+
+.overlay-title {
+  font-size: 11px;
+  color: #e5e7eb;
+}
+
+.overlay-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 4px;
+}
+
+.overlay-speed-btn {
+  padding: 0 4px;
+  font-size: 10px;
+  border-radius: 4px;
+}
+
+.overlay-dpad {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.overlay-row {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.overlay-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  border: 1px solid #4b5563;
+  background: rgba(15, 23, 42, 0.9);
+  color: #e5e7eb;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  pointer-events: auto;
 }
 
 .joystick-wrapper {
@@ -368,8 +480,28 @@ button.danger:hover {
 
 /* 响应式适配：手机竖屏和横屏 */
 
-/* 竖屏 / 窄屏：视频在上，小车和云台在下方左右并排，整体稍微紧凑 */
-@media (max-width: 600px) {
+/* 竖屏 / 中小屏：视频在上，小车和云台在下方左右并排，顶部栏分行更紧凑 */
+@media (max-width: 1024px) {
+  .top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .top-right {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ws-config input[type="text"] {
+    min-width: 160px;
+    width: auto;
+    max-width: 100%;
+  }
+
   .layout {
     grid-template-columns: 1fr 1fr;
   }
@@ -404,9 +536,14 @@ button.danger:hover {
     font-size: 14px;
     margin-bottom: 6px;
   }
+
+  /* 竖屏窄屏：视频区域稍微更高一些，接近 4:3 */
+  .panel-video .video-box {
+    padding-top: 75%;
+  }
 }
 
-/* 横屏且高度较小时：压缩视频高度，保证下方控制区也能看到 */
+/* 横屏且高度较小时：视频变扁，在视频上叠加透明控制；可以上下轻微滑动 */
 @media (orientation: landscape) and (max-height: 520px) {
   .layout {
     grid-template-columns: 1fr 1fr;
@@ -417,12 +554,33 @@ button.danger:hover {
   }
 
   .panel-video .video-box {
-    /* 改为更扁的比例，避免撑满整个高度 */
+    /* 比正常 16:9 再扁一点，避免占满整个高度 */
     padding-top: 40%;
   }
 
   .panel {
     padding: 8px;
+  }
+
+  .video-overlay {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .overlay-panel {
+    min-width: 140px;
+    padding: 10px;
+  }
+
+  .overlay-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+
+  .panel-drive,
+  .panel-gimbal {
+    display: none;
   }
 }
 

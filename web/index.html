@@ -19,8 +19,17 @@
         <span id="ws-status" class="status status-disconnected">未连接</span>
       </div>
       <div class="send-config">
-        <label class="send-label">发送间隔：<span id="send-interval-label">100</span> ms</label>
-        <input id="send-interval" type="range" min="50" max="500" step="50" value="100" />
+        <span class="send-label">发送间隔</span>
+        <button id="btn-send-interval-dec" class="interval-btn">
+          <span class="btn-main">-</span>
+        </button>
+        <div class="interval-box">
+          <span id="send-interval-label">100</span> ms
+        </div>
+        <button id="btn-send-interval-inc" class="interval-btn">
+          <span class="btn-main">+</span>
+        </button>
+        <input id="send-interval" type="range" min="50" max="500" step="50" value="100" style="display: none" />
         <span class="hint top-hint">[ / ] 调整发送频率</span>
       </div>
     </div>
@@ -28,7 +37,6 @@
 
   <main class="layout">
     <section class="panel panel-video">
-      <h2>视频预览</h2>
       <div class="video-header">
         <label class="video-url-label">
           视频流地址：
@@ -42,7 +50,48 @@
         <button id="video-load-btn">加载视频</button>
       </div>
       <div class="video-box">
-        <img id="video-view" alt="视频预览" />
+        <img id="video-view" alt="视频预览" src="placeholder-video.svg" />
+        <div class="video-overlay">
+          <div class="overlay-panel overlay-drive">
+            <div class="overlay-header">
+              <div class="overlay-title">小车</div>
+              <button id="ov-speed-gear" class="overlay-speed-btn">速：<span id="ov-speed-label">中</span></button>
+            </div>
+            <div class="overlay-dpad">
+              <div class="overlay-row">
+                <button id="ov-drive-nw" class="overlay-btn">↖</button>
+                <button id="ov-drive-forward" class="overlay-btn">↑</button>
+                <button id="ov-drive-ne" class="overlay-btn">↗</button>
+              </div>
+              <div class="overlay-row">
+                <button id="ov-drive-left" class="overlay-btn">←</button>
+                <button id="ov-drive-stop" class="overlay-btn">■</button>
+                <button id="ov-drive-right" class="overlay-btn">→</button>
+              </div>
+              <div class="overlay-row">
+                <button id="ov-drive-sw" class="overlay-btn">↙</button>
+                <button id="ov-drive-backward" class="overlay-btn">↓</button>
+                <button id="ov-drive-se" class="overlay-btn">↘</button>
+              </div>
+            </div>
+          </div>
+          <div class="overlay-panel overlay-gimbal">
+            <div class="overlay-title">云台</div>
+            <div class="overlay-dpad">
+              <div class="overlay-row">
+                <button id="ov-gimbal-up" class="overlay-btn">↑</button>
+              </div>
+              <div class="overlay-row">
+                <button id="ov-gimbal-left" class="overlay-btn">←</button>
+                <button id="ov-gimbal-center" class="overlay-btn">◎</button>
+                <button id="ov-gimbal-right" class="overlay-btn">→</button>
+              </div>
+              <div class="overlay-row">
+                <button id="ov-gimbal-down" class="overlay-btn">↓</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
