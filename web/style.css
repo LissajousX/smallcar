@@ -775,3 +775,82 @@ button.danger:hover {
     gap: 8px;
   }
 }
+
+/* 桌面中等高度或接近正方形窗口：进一步压缩整体高度，提升一屏适配率 */
+@media (min-width: 900px) and (max-height: 900px) {
+  .top-bar {
+    padding: 6px 10px;
+  }
+
+  .panel-video .video-box {
+    padding-top: 28%;
+  }
+
+  .panel {
+    padding: 8px;
+  }
+
+  .layout {
+    gap: 8px;
+  }
+
+  .panel h2 {
+    font-size: 14px;
+    margin-bottom: 6px;
+  }
+}
+
+/* 桌面高度更矮（例如 700~800 像素）的窗口：再压一档，优先保证一屏显示 */
+@media (min-width: 900px) and (max-height: 800px) {
+  .top-bar {
+    padding: 4px 8px;
+  }
+
+  .top-bar h1 {
+    font-size: 18px;
+  }
+
+  .panel-video .video-box {
+    padding-top: 24%;
+  }
+
+  .panel {
+    padding: 6px;
+  }
+
+  .layout {
+    gap: 6px;
+  }
+
+  .panel-status {
+    padding: 6px 8px;
+  }
+
+  .panel-status h2 {
+    font-size: 13px;
+    margin-bottom: 2px;
+  }
+
+  .status-grid {
+    font-size: 12px;
+  }
+}
+
+/* 超大高分辨率屏幕（如折叠屏内屏 2480×2200）：适当放大视频高度和间距 */
+@media (min-width: 2000px) and (min-height: 1800px) {
+  .panel-video .video-box {
+    padding-top: 38%;
+  }
+
+  .panel {
+    padding: 10px;
+  }
+
+  .layout {
+    gap: 12px;
+  }
+
+  .panel-status {
+    padding: 8px 12px;
+  }
+}
