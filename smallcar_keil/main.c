@@ -433,7 +433,27 @@ int main(void)
 
                 base = (int16_t)((int32_t)rc.throttle * speed_percent / 100);
 
-                if (base == 0 && steer_remote == 0)
+                if (base == 0 && steer_remote != 0)
+                {
+                    /* 串口遥控：throttle = 0 且 steer != 0 时，做原地左/右转 */
+                    int16_t spin = (int16_t)((int32_t)((steer_remote >= 0) ? steer_remote : -steer_remote) * speed_percent / 100);
+                    if (spin > 100)
+                    {
+                        spin = 100;
+                    }
+
+                    if (steer_remote < 0)
+                    {
+                        /* steer < 0：原地左转 */
+                        Motor_SetLR((int16_t)-spin, spin);
+                    }
+                    else
+                    {
+                        /* steer > 0：原地右转 */
+                        Motor_SetLR(spin, (int16_t)-spin);
+                    }
+                }
+                else if (base == 0 && steer_remote == 0)
                 {
                     Motor_SetLR(0, 0);
                 }

@@ -1,0 +1,618 @@
+(function () {
+  const wsUrlInput = document.getElementById("ws-url");
+  const wsBtn = document.getElementById("ws-connect-btn");
+  const wsStatus = document.getElementById("ws-status");
+
+  const throttleInput = document.getElementById("throttle");
+  const steerInput = document.getElementById("steer");
+  const yawInput = document.getElementById("yaw");
+  const pitchInput = document.getElementById("pitch");
+  const gimbalEnable = document.getElementById("gimbal-enable");
+
+  const throttleValue = document.getElementById("throttle-value");
+  const steerValue = document.getElementById("steer-value");
+  const yawValue = document.getElementById("yaw-value");
+  const pitchValue = document.getElementById("pitch-value");
+
+  const btnStop = document.getElementById("btn-stop");
+  const btnCenterSteer = document.getElementById("btn-center-steer");
+  const btnCenterGimbal = document.getElementById("btn-center-gimbal");
+
+  const btnSpeedGear = document.getElementById("btn-speed-gear");
+  const speedGearLabel = document.getElementById("speed-gear-label");
+
+  const btnForward = document.getElementById("btn-forward");
+  const btnBackward = document.getElementById("btn-backward");
+  const btnLeft = document.getElementById("btn-left");
+  const btnRight = document.getElementById("btn-right");
+
+  const btnDriveNW = document.getElementById("btn-drive-nw");
+  const btnDriveNE = document.getElementById("btn-drive-ne");
+  const btnDriveSW = document.getElementById("btn-drive-sw");
+  const btnDriveSE = document.getElementById("btn-drive-se");
+
+  const btnGimbalUp = document.getElementById("btn-gimbal-up");
+  const btnGimbalDown = document.getElementById("btn-gimbal-down");
+  const btnGimbalLeft = document.getElementById("btn-gimbal-left");
+  const btnGimbalRight = document.getElementById("btn-gimbal-right");
+
+  const videoUrlInput = document.getElementById("video-url");
+  const videoLoadBtn = document.getElementById("video-load-btn");
+  const videoView = document.getElementById("video-view");
+
+  const driveJoystick = document.getElementById("drive-joystick");
+  const driveStick = document.getElementById("drive-stick");
+  const gimbalJoystick = document.getElementById("gimbal-joystick");
+  const gimbalStick = document.getElementById("gimbal-stick");
+
+  const sendIntervalInput = document.getElementById("send-interval");
+  const sendIntervalLabel = document.getElementById("send-interval-label");
+  const lastPayloadView = document.getElementById("last-payload");
+
+  let ws = null;
+  let sendTimer = null;
+
+  const state = {
+    throttle: 0,
+    steer: 0,
+    yaw: 90,
+    pitch: 90,
+  };
+
+  const DRIVE_SPEED = 80;
+  const DRIVE_STEER_FULL = 100;
+  const DRIVE_STEER_DIAG = 60;
+  const GIMBAL_STEP = 3;
+
+  // 与 STM32 固件 main.c 中的角度限制保持一致
+  // YAW_MIN_ANGLE 30, YAW_MAX_ANGLE 150, PITCH_MIN_ANGLE 45, PITCH_MAX_ANGLE 135
+  const YAW_MIN = 30;
+  const YAW_MAX = 150;
+  const PITCH_MIN = 45;
+  const PITCH_MAX = 135;
+
+  const SPEED_LEVELS = [60, 80, 100];
+  const SPEED_LABELS = ["低", "中", "高"];
+  let speedGearIndex = 1;
+  const DRIVE_STEER_SPIN = 100;
+
+  const keyDirectionMap = {
+    KeyQ: "FL", // 前进左转（斜前左）
+    KeyW: "F",  // 前进
+    KeyE: "FR", // 前进右转（斜前右）
+    KeyA: "SL", // 原地左转
+    KeyD: "SR", // 原地右转
+    KeyZ: "BL", // 后退左转（斜后左）
+    KeyS: "STOP",  // 停止
+    KeyX: "B",     // 后退
+    KeyC: "BR", // 后退右转（斜后右）
+  };
+
+  function clamp(value, min, max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+  }
+
+  function setStatus(text, cls) {
+    wsStatus.textContent = text;
+    wsStatus.className = `status ${cls}`;
+  }
+
+  function updateLabels() {
+    throttleValue.textContent = state.throttle;
+    steerValue.textContent = state.steer;
+    yawValue.textContent = state.yaw;
+    pitchValue.textContent = state.pitch;
+  }
+
+  function updateIntervalLabel() {
+    sendIntervalLabel.textContent = sendIntervalInput.value;
+  }
+
+  function getCurrentSpeed() {
+    if (speedGearIndex < 0 || speedGearIndex >= SPEED_LEVELS.length) {
+      return SPEED_LEVELS[1];
+    }
+    return SPEED_LEVELS[speedGearIndex];
+  }
+
+  function updateSpeedGearLabel() {
+    if (!speedGearLabel) {
+      return;
+    }
+    const idx = speedGearIndex;
+    const label = SPEED_LABELS[idx] || SPEED_LABELS[1];
+    speedGearLabel.textContent = label;
+  }
+
+  function setSpeedGear(index) {
+    if (index < 0) {
+      index = 0;
+    } else if (index >= SPEED_LEVELS.length) {
+      index = SPEED_LEVELS.length - 1;
+    }
+    speedGearIndex = index;
+    updateSpeedGearLabel();
+  }
+
+  function adjustSendInterval(delta) {
+    if (!sendIntervalInput) {
+      return;
+    }
+    let v = parseInt(sendIntervalInput.value, 10) || 100;
+    v += delta;
+    if (v < 50) v = 50;
+    if (v > 500) v = 500;
+    sendIntervalInput.value = String(v);
+    updateIntervalLabel();
+    startSending();
+  }
+
+  function setDrive(throttle, steer) {
+    state.throttle = clamp(throttle, -100, 100);
+    state.steer = clamp(steer, -100, 100);
+    throttleInput.value = String(state.throttle);
+    steerInput.value = String(state.steer);
+    updateLabels();
+    sendOnce();
+  }
+
+  function centerGimbal() {
+    state.yaw = 90;
+    state.pitch = 90;
+    yawInput.value = "90";
+    pitchInput.value = "90";
+    updateLabels();
+    sendOnce();
+  }
+
+  function stopDrive() {
+    setDrive(0, 0);
+  }
+
+  function applyDirection(dir) {
+    const v = getCurrentSpeed();
+    switch (dir) {
+      case "F":
+        setDrive(v, 0);
+        break;
+      case "B":
+        setDrive(-v, 0);
+        break;
+      case "SL":
+        // 原地左转：throttle=0, steer<0
+        setDrive(0, -DRIVE_STEER_SPIN);
+        break;
+      case "SR":
+        // 原地右转：throttle=0, steer>0
+        setDrive(0, DRIVE_STEER_SPIN);
+        break;
+      case "FL":
+        // 前进左转（斜前左）
+        setDrive(v, -DRIVE_STEER_DIAG);
+        break;
+      case "FR":
+        // 前进右转（斜前右）
+        setDrive(v, DRIVE_STEER_DIAG);
+        break;
+      case "BL":
+        // 后退左转（斜后左）
+        setDrive(-v, -DRIVE_STEER_DIAG);
+        break;
+      case "BR":
+        // 后退右转（斜后右）
+        setDrive(-v, DRIVE_STEER_DIAG);
+        break;
+      case "STOP":
+      default:
+        stopDrive();
+        break;
+    }
+  }
+
+  function adjustGimbal(dYaw, dPitch) {
+    state.yaw = clamp(state.yaw + dYaw, YAW_MIN, YAW_MAX);
+    state.pitch = clamp(state.pitch + dPitch, PITCH_MIN, PITCH_MAX);
+    yawInput.value = String(state.yaw);
+    pitchInput.value = String(state.pitch);
+    updateLabels();
+    sendOnce();
+  }
+
+  function buildPayload() {
+    return {
+      type: "control",
+      throttle: state.throttle,
+      steer: state.steer,
+      yaw: state.yaw,
+      pitch: state.pitch,
+    };
+  }
+
+  function sendOnce() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const payload = buildPayload();
+    const json = JSON.stringify(payload);
+    ws.send(json);
+    if (lastPayloadView) {
+      lastPayloadView.textContent = json;
+    }
+  }
+
+  function startSending() {
+    if (sendTimer) {
+      clearInterval(sendTimer);
+    }
+    const interval = parseInt(sendIntervalInput.value, 10) || 100;
+    sendTimer = setInterval(sendOnce, interval);
+  }
+
+  function stopSending() {
+    if (sendTimer) {
+      clearInterval(sendTimer);
+      sendTimer = null;
+    }
+  }
+
+  function connect() {
+    const url = wsUrlInput.value.trim();
+    if (!url) {
+      alert("请先填写 WebSocket 地址");
+      return;
+    }
+
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+
+    try {
+      ws = new WebSocket(url);
+    } catch (e) {
+      alert("无法创建 WebSocket：" + e.message);
+      return;
+    }
+
+    setStatus("连接中...", "status-disconnected");
+    wsBtn.textContent = "断开";
+
+    ws.onopen = function () {
+      setStatus("已连接", "status-connected");
+      startSending();
+    };
+
+    ws.onclose = function () {
+      setStatus("未连接", "status-disconnected");
+      wsBtn.textContent = "连接";
+      stopSending();
+    };
+
+    ws.onerror = function () {
+      setStatus("错误", "status-error");
+    };
+  }
+
+  function disconnect() {
+    if (ws) {
+      ws.close();
+      ws = null;
+    }
+  }
+
+  function setupJoystick(area, stick, onChange) {
+    if (!area || !stick) {
+      return;
+    }
+
+    let active = false;
+    let pointerId = null;
+
+    function getGeom() {
+      const rect = area.getBoundingClientRect();
+      const radius = area.clientWidth / 2;
+      const stickRadius = stick.clientWidth / 2;
+      return { rect, radius, stickRadius };
+    }
+
+    function setStick(dx, dy) {
+      const g = getGeom();
+      const center = g.radius;
+      const x = center + dx - g.stickRadius;
+      const y = center + dy - g.stickRadius;
+      stick.style.left = `${x}px`;
+      stick.style.top = `${y}px`;
+    }
+
+    function resetStick() {
+      const g = getGeom();
+      setStick(0, 0);
+      onChange(0, 0);
+    }
+
+    function handleMove(clientX, clientY) {
+      const g = getGeom();
+      const centerX = g.rect.left + g.radius;
+      const centerY = g.rect.top + g.radius;
+      let dx = clientX - centerX;
+      let dy = clientY - centerY;
+      const maxDist = g.radius - g.stickRadius;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      if (dist > maxDist) {
+        const s = maxDist / dist;
+        dx *= s;
+        dy *= s;
+      }
+      const normX = dx / maxDist;
+      const normY = dy / maxDist;
+      setStick(dx, dy);
+      onChange(normX, normY);
+    }
+
+    area.addEventListener("pointerdown", (e) => {
+      active = true;
+      pointerId = e.pointerId;
+      area.setPointerCapture(pointerId);
+      handleMove(e.clientX, e.clientY);
+    });
+
+    area.addEventListener("pointermove", (e) => {
+      if (!active || e.pointerId !== pointerId) {
+        return;
+      }
+      handleMove(e.clientX, e.clientY);
+    });
+
+    function endPointer(e) {
+      if (!active || e.pointerId !== pointerId) {
+        return;
+      }
+      active = false;
+      area.releasePointerCapture(pointerId);
+      resetStick();
+    }
+
+    area.addEventListener("pointerup", endPointer);
+    area.addEventListener("pointercancel", endPointer);
+
+    // 初始归中
+    window.addEventListener("load", resetStick);
+  }
+
+  // 事件绑定
+  throttleInput.addEventListener("input", () => {
+    state.throttle = parseInt(throttleInput.value, 10) || 0;
+    updateLabels();
+  });
+
+  steerInput.addEventListener("input", () => {
+    state.steer = parseInt(steerInput.value, 10) || 0;
+    updateLabels();
+  });
+
+  yawInput.addEventListener("input", () => {
+    state.yaw = parseInt(yawInput.value, 10) || 0;
+    updateLabels();
+  });
+
+  pitchInput.addEventListener("input", () => {
+    state.pitch = parseInt(pitchInput.value, 10) || 0;
+    updateLabels();
+  });
+
+  btnStop.addEventListener("click", () => {
+    state.throttle = 0;
+    state.steer = 0;
+    throttleInput.value = "0";
+    steerInput.value = "0";
+    updateLabels();
+    sendOnce();
+  });
+
+  if (btnCenterSteer) {
+    btnCenterSteer.addEventListener("click", () => {
+      state.steer = 0;
+      steerInput.value = "0";
+      updateLabels();
+      sendOnce();
+    });
+  }
+
+  btnCenterGimbal.addEventListener("click", () => {
+    centerGimbal();
+  });
+
+  if (btnGimbalUp && btnGimbalDown && btnGimbalLeft && btnGimbalRight) {
+    btnGimbalUp.addEventListener("click", () => adjustGimbal(0, GIMBAL_STEP));
+    btnGimbalDown.addEventListener("click", () => adjustGimbal(0, -GIMBAL_STEP));
+    btnGimbalLeft.addEventListener("click", () => adjustGimbal(-GIMBAL_STEP, 0));
+    btnGimbalRight.addEventListener("click", () => adjustGimbal(GIMBAL_STEP, 0));
+  }
+
+  function adjustThrottle(delta) {
+    state.throttle = clamp(state.throttle + delta, -100, 100);
+    throttleInput.value = String(state.throttle);
+    updateLabels();
+    sendOnce();
+  }
+
+  function adjustSteer(delta) {
+    state.steer = clamp(state.steer + delta, -100, 100);
+    steerInput.value = String(state.steer);
+    updateLabels();
+    sendOnce();
+  }
+
+  if (btnForward && btnBackward && btnLeft && btnRight && btnStop) {
+    const bindDirectionButton = (el, dir) => {
+      if (!el) return;
+      el.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        if (dir === "STOP") {
+          stopDrive();
+        } else {
+          applyDirection(dir);
+        }
+      });
+
+      const endHandler = (e) => {
+        e.preventDefault();
+        if (dir !== "STOP") {
+          stopDrive();
+        }
+      };
+
+      el.addEventListener("pointerup", endHandler);
+      el.addEventListener("pointercancel", endHandler);
+      el.addEventListener("pointerleave", endHandler);
+    };
+
+    bindDirectionButton(btnForward, "F");
+    bindDirectionButton(btnBackward, "B");
+    bindDirectionButton(btnLeft, "SL");
+    bindDirectionButton(btnRight, "SR");
+    bindDirectionButton(btnDriveNW, "FL");
+    bindDirectionButton(btnDriveNE, "FR");
+    bindDirectionButton(btnDriveSW, "BL");
+    bindDirectionButton(btnDriveSE, "BR");
+    bindDirectionButton(btnStop, "STOP");
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.repeat) {
+      return;
+    }
+
+    const code = e.code || e.key;
+
+    // 方向键用于云台控制
+    if (
+      code === "ArrowUp" ||
+      code === "ArrowDown" ||
+      code === "ArrowLeft" ||
+      code === "ArrowRight"
+    ) {
+      e.preventDefault();
+      switch (code) {
+        case "ArrowUp":
+          // 云台抬头
+          adjustGimbal(0, GIMBAL_STEP);
+          break;
+        case "ArrowDown":
+          // 云台低头
+          adjustGimbal(0, -GIMBAL_STEP);
+          break;
+        case "ArrowLeft":
+          // 云台向左
+          adjustGimbal(-GIMBAL_STEP, 0);
+          break;
+        case "ArrowRight":
+          // 云台向右
+          adjustGimbal(GIMBAL_STEP, 0);
+          break;
+        default:
+          break;
+      }
+      return;
+    }
+
+    // 空格：只做云台回中
+    if (code === "Space" || e.key === " ") {
+      e.preventDefault();
+      centerGimbal();
+      return;
+    }
+
+    // 数字键 1/2/3：直接切换挡位
+    if (code === "Digit1" || code === "Digit2" || code === "Digit3") {
+      e.preventDefault();
+      const idx =
+        code === "Digit1" ? 0 : code === "Digit2" ? 1 : 2;
+      setSpeedGear(idx);
+      return;
+    }
+
+    // [ / ] 调整发送频率
+    if (code === "BracketLeft" || code === "BracketRight") {
+      e.preventDefault();
+      const delta = code === "BracketLeft" ? -50 : 50;
+      adjustSendInterval(delta);
+      return;
+    }
+
+    const dir = keyDirectionMap[code] || keyDirectionMap[e.key];
+    if (!dir) {
+      return;
+    }
+
+    e.preventDefault();
+
+    if (dir === "STOP") {
+      // S 键：只停车，不动云台
+      stopDrive();
+    } else {
+      applyDirection(dir);
+    }
+  });
+
+  window.addEventListener("keyup", (e) => {
+    const code = e.code || e.key;
+
+    // 方向键用于云台控制，松开时不做额外处理
+    if (
+      code === "ArrowUp" ||
+      code === "ArrowDown" ||
+      code === "ArrowLeft" ||
+      code === "ArrowRight"
+    ) {
+      return;
+    }
+
+    // 空格、数字、[ ] 不走小车 stop 逻辑
+    if (
+      code === "Space" ||
+      code === "Digit1" ||
+      code === "Digit2" ||
+      code === "Digit3" ||
+      code === "BracketLeft" ||
+      code === "BracketRight"
+    ) {
+      return;
+    }
+
+    const dir = keyDirectionMap[code] || keyDirectionMap[e.key];
+    if (!dir) {
+      return;
+    }
+    e.preventDefault();
+    if (dir !== "STOP") {
+      stopDrive();
+    }
+  });
+
+  sendIntervalInput.addEventListener("input", () => {
+    updateIntervalLabel();
+    startSending();
+  });
+
+  if (btnSpeedGear && speedGearLabel) {
+    btnSpeedGear.addEventListener("click", () => {
+      setSpeedGear((speedGearIndex + 1) % SPEED_LEVELS.length);
+    });
+    updateSpeedGearLabel();
+  }
+
+  wsBtn.addEventListener("click", () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      disconnect();
+    } else {
+      connect();
+    }
+  });
+
+  // 初始 UI 状态
+  updateLabels();
+  updateIntervalLabel();
+})();
