@@ -65,12 +65,7 @@
   const gimbalJoystick = document.getElementById("gimbal-joystick");
   const gimbalStick = document.getElementById("gimbal-stick");
 
-  const sendIntervalInput = document.getElementById("send-interval");
-  const sendIntervalLabel = document.getElementById("send-interval-label");
   const lastPayloadView = document.getElementById("last-payload");
-
-  const btnSendIntervalDec = document.getElementById("btn-send-interval-dec");
-  const btnSendIntervalInc = document.getElementById("btn-send-interval-inc");
 
   let ws = null;
   let sendTimer = null;
@@ -113,6 +108,13 @@
     KeyC: "BR", // 后退右转（斜后右）
   };
 
+  function isTouchDevice() {
+    return (
+      "ontouchstart" in window ||
+      (navigator && (navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0))
+    );
+  }
+
   function clamp(value, min, max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -131,10 +133,6 @@
     steerValue.textContent = state.steer;
     yawValue.textContent = state.yaw;
     pitchValue.textContent = state.pitch;
-  }
-
-  function updateIntervalLabel() {
-    sendIntervalLabel.textContent = sendIntervalInput.value;
   }
 
   function getCurrentSpeed() {
@@ -165,19 +163,6 @@
     updateSpeedGearLabel();
   }
 
-  function adjustSendInterval(delta) {
-    if (!sendIntervalInput) {
-      return;
-    }
-    let v = parseInt(sendIntervalInput.value, 10) || 100;
-    v += delta;
-    if (v < 50) v = 50;
-    if (v > 500) v = 500;
-    sendIntervalInput.value = String(v);
-    updateIntervalLabel();
-    startSending();
-  }
-
   // 横屏小高度时，自动把视频面板滚动到合适位置
   function scrollVideoIntoViewIfLandscape() {
     // 仅在横屏且高度较小时启用，阈值与 CSS 中的 max-height 一致
@@ -186,15 +171,11 @@
       return;
     }
 
-    const videoPanel = document.querySelector(".panel-video");
-    if (!videoPanel) {
-      return;
-    }
-
-    const rect = videoPanel.getBoundingClientRect();
-    // 将视频面板顶端稍微留一点空隙地滚到视口内
-    const currentTop = window.pageYOffset || window.scrollY || 0;
-    const targetTop = Math.max(0, currentTop + rect.top - 8);
+    const totalHeight =
+      document.documentElement.scrollHeight ||
+      document.body.scrollHeight ||
+      0;
+    const targetTop = Math.max(0, totalHeight - window.innerHeight);
     window.scrollTo({ top: targetTop, behavior: "smooth" });
   }
 
@@ -295,7 +276,7 @@
     if (sendTimer) {
       clearInterval(sendTimer);
     }
-    const interval = parseInt(sendIntervalInput.value, 10) || 100;
+    const interval = 50; // 固定发送周期，单位 ms
     sendTimer = setInterval(sendOnce, interval);
   }
 
@@ -603,14 +584,6 @@
       return;
     }
 
-    // [ / ] 调整发送频率
-    if (code === "BracketLeft" || code === "BracketRight") {
-      e.preventDefault();
-      const delta = code === "BracketLeft" ? -50 : 50;
-      adjustSendInterval(delta);
-      return;
-    }
-
     const dir = keyDirectionMap[code] || keyDirectionMap[e.key];
     if (!dir) {
       return;
@@ -661,23 +634,6 @@
     }
   });
 
-  sendIntervalInput.addEventListener("input", () => {
-    updateIntervalLabel();
-    startSending();
-  });
-
-  if (btnSendIntervalDec) {
-    btnSendIntervalDec.addEventListener("click", () => {
-      adjustSendInterval(-50);
-    });
-  }
-
-  if (btnSendIntervalInc) {
-    btnSendIntervalInc.addEventListener("click", () => {
-      adjustSendInterval(50);
-    });
-  }
-
   if (btnSpeedGear) {
     btnSpeedGear.addEventListener("click", () => {
       setSpeedGear((speedGearIndex + 1) % SPEED_LEVELS.length);
@@ -692,6 +648,20 @@
 
   updateSpeedGearLabel();
 
+   // 触屏设备上，禁止在按钮类控件上长按弹出复制/菜单
+  if (isTouchDevice()) {
+    window.addEventListener("contextmenu", (e) => {
+      const target = e.target;
+      if (
+        target &&
+        typeof target.closest === "function" &&
+        target.closest("button, .direction-btn, .overlay-btn, .gamepad-btn")
+      ) {
+        e.preventDefault();
+      }
+    });
+  }
+
   wsBtn.addEventListener("click", () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       disconnect();
@@ -702,7 +672,6 @@
 
   // 初始 UI 状态
   updateLabels();
-  updateIntervalLabel();
 
   // 视频预览加载按钮
   if (videoLoadBtn && videoUrlInput && videoView) {
@@ -713,13 +682,22 @@
       }
     });
 
-    videoLoadBtn.addEventListener("click", () => {
+    const loadVideo = () => {
       const url = videoUrlInput.value.trim();
       if (!url) {
         videoView.src = VIDEO_PLACEHOLDER;
         return;
       }
       videoView.src = url;
+    };
+
+    videoLoadBtn.addEventListener("click", loadVideo);
+
+    // 视频未加载（占位图）时，点击视频区域等效于点击“加载”按钮
+    videoView.addEventListener("click", () => {
+      if (!videoView.src || videoView.src.includes(VIDEO_PLACEHOLDER)) {
+        loadVideo();
+      }
     });
   }
 

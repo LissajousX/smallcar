@@ -11,26 +11,17 @@
     <h1>SmallCar 远程控制</h1>
     <div class="top-right">
       <div class="ws-config">
-        <label>
-          WebSocket 地址：
-          <input id="ws-url" type="text" value="ws://localhost:8765/ws_control" />
+        <label class="ws-label">
+          <span>WS地址：</span>
+          <input
+            id="ws-url"
+            class="top-pill-input"
+            type="text"
+            value="ws://localhost:8765/ws_control"
+          />
         </label>
         <button id="ws-connect-btn">连接</button>
         <span id="ws-status" class="status status-disconnected">未连接</span>
-      </div>
-      <div class="send-config">
-        <span class="send-label">发送间隔</span>
-        <button id="btn-send-interval-dec" class="interval-btn">
-          <span class="btn-main">-</span>
-        </button>
-        <div class="interval-box">
-          <span id="send-interval-label">100</span> ms
-        </div>
-        <button id="btn-send-interval-inc" class="interval-btn">
-          <span class="btn-main">+</span>
-        </button>
-        <input id="send-interval" type="range" min="50" max="500" step="50" value="100" style="display: none" />
-        <span class="hint top-hint">[ / ] 调整发送频率</span>
       </div>
     </div>
   </header>
@@ -42,12 +33,13 @@
           视频流地址：
           <input
             id="video-url"
+            class="top-pill-input"
             type="text"
             value="http://localhost:8080/stream"
             placeholder="如 http://ESP32_IP:PORT/stream"
           />
         </label>
-        <button id="video-load-btn">加载视频</button>
+        <button id="video-load-btn">加载</button>
       </div>
       <div class="video-box">
         <img id="video-view" alt="视频预览" src="placeholder-video.svg" />
@@ -95,95 +87,99 @@
       </div>
     </section>
 
-    <section class="panel panel-drive">
-      <div class="panel-drive-header">
-        <h2>小车运动</h2>
-        <button id="btn-speed-gear" class="small-btn">速度：<span id="speed-gear-label">中</span></button>
-      </div>
+    <section class="panel panel-controls">
+      <div class="panel-controls-grid">
+        <section class="panel panel-drive">
+          <div class="panel-drive-header">
+            <h2>小车运动</h2>
+            <button id="btn-speed-gear" class="small-btn">速度：<span id="speed-gear-label">中</span></button>
+          </div>
 
-      <div class="direction-pad">
-        <div class="direction-row">
-          <button id="btn-drive-nw" class="direction-btn">
-            <span class="dir-arrow">↖</span>
-            <span class="dir-key">Q</span>
-          </button>
-          <button id="btn-forward" class="direction-btn">
-            <span class="dir-arrow">↑</span>
-            <span class="dir-key">W</span>
-          </button>
-          <button id="btn-drive-ne" class="direction-btn">
-            <span class="dir-arrow">↗</span>
-            <span class="dir-key">E</span>
-          </button>
-        </div>
-        <div class="direction-row">
-          <button id="btn-left" class="direction-btn">
-            <span class="dir-arrow">←</span>
-            <span class="dir-key">A</span>
-          </button>
-          <button id="btn-stop" class="direction-btn danger">
-            <span class="dir-arrow">■</span>
-            <span class="dir-key">S</span>
-          </button>
-          <button id="btn-right" class="direction-btn">
-            <span class="dir-arrow">→</span>
-            <span class="dir-key">D</span>
-          </button>
-        </div>
-        <div class="direction-row">
-          <button id="btn-drive-sw" class="direction-btn">
-            <span class="dir-arrow">↙</span>
-            <span class="dir-key">Z</span>
-          </button>
-          <button id="btn-backward" class="direction-btn">
-            <span class="dir-arrow">↓</span>
-            <span class="dir-key">X</span>
-          </button>
-          <button id="btn-drive-se" class="direction-btn">
-            <span class="dir-arrow">↘</span>
-            <span class="dir-key">C</span>
-          </button>
-        </div>
-      </div>
+          <div class="direction-pad">
+            <div class="direction-row">
+              <button id="btn-drive-nw" class="direction-btn">
+                <span class="dir-arrow">↖</span>
+                <span class="dir-key">Q</span>
+              </button>
+              <button id="btn-forward" class="direction-btn">
+                <span class="dir-arrow">↑</span>
+                <span class="dir-key">W</span>
+              </button>
+              <button id="btn-drive-ne" class="direction-btn">
+                <span class="dir-arrow">↗</span>
+                <span class="dir-key">E</span>
+              </button>
+            </div>
+            <div class="direction-row">
+              <button id="btn-left" class="direction-btn">
+                <span class="dir-arrow">←</span>
+                <span class="dir-key">A</span>
+              </button>
+              <button id="btn-stop" class="direction-btn danger">
+                <span class="dir-arrow">■</span>
+                <span class="dir-key">S</span>
+              </button>
+              <button id="btn-right" class="direction-btn">
+                <span class="dir-arrow">→</span>
+                <span class="dir-key">D</span>
+              </button>
+            </div>
+            <div class="direction-row">
+              <button id="btn-drive-sw" class="direction-btn">
+                <span class="dir-arrow">↙</span>
+                <span class="dir-key">Z</span>
+              </button>
+              <button id="btn-backward" class="direction-btn">
+                <span class="dir-arrow">↓</span>
+                <span class="dir-key">X</span>
+              </button>
+              <button id="btn-drive-se" class="direction-btn">
+                <span class="dir-arrow">↘</span>
+                <span class="dir-key">C</span>
+              </button>
+            </div>
+          </div>
 
-      <div class="field field-slider">
-        <label for="throttle">油门（前进/后退）：<span id="throttle-value">0</span></label>
-        <input id="throttle" type="range" min="-100" max="100" value="0" />
-        <div class="hint">负数：后退，正数：前进；范围 -100..100。</div>
-      </div>
+          <div class="field field-slider">
+            <label for="throttle">油门（前进/后退）：<span id="throttle-value">0</span></label>
+            <input id="throttle" type="range" min="-100" max="100" value="0" />
+            <div class="hint">负数：后退，正数：前进；范围 -100..100。</div>
+          </div>
 
-      <div class="field field-slider">
-        <label for="steer">转向（左/右）：<span id="steer-value">0</span></label>
-        <input id="steer" type="range" min="-100" max="100" value="0" />
-        <div class="hint">负数：向左；正数：向右；范围 -100..100。</div>
-      </div>
-    </section>
+          <div class="field field-slider">
+            <label for="steer">转向（左/右）：<span id="steer-value">0</span></label>
+            <input id="steer" type="range" min="-100" max="100" value="0" />
+            <div class="hint">负数：向左；正数：向右；范围 -100..100。</div>
+          </div>
+        </section>
 
-    <section class="panel panel-gimbal">
-      <h2>云台控制</h2>
+        <section class="panel panel-gimbal">
+          <h2>云台控制</h2>
 
-      <div class="gimbal-pad">
-        <div class="direction-row">
-          <button id="btn-gimbal-up" class="direction-btn">↑</button>
-        </div>
-        <div class="direction-row">
-          <button id="btn-gimbal-left" class="direction-btn">←</button>
-          <button id="btn-center-gimbal" class="direction-btn">◎</button>
-          <button id="btn-gimbal-right" class="direction-btn">→</button>
-        </div>
-        <div class="direction-row">
-          <button id="btn-gimbal-down" class="direction-btn">↓</button>
-        </div>
-      </div>
+          <div class="gimbal-pad">
+            <div class="direction-row">
+              <button id="btn-gimbal-up" class="direction-btn">↑</button>
+            </div>
+            <div class="direction-row">
+              <button id="btn-gimbal-left" class="direction-btn">←</button>
+              <button id="btn-center-gimbal" class="direction-btn">◎</button>
+              <button id="btn-gimbal-right" class="direction-btn">→</button>
+            </div>
+            <div class="direction-row">
+              <button id="btn-gimbal-down" class="direction-btn">↓</button>
+            </div>
+          </div>
 
-      <div class="field field-slider">
-        <label for="yaw">水平角 Yaw：<span id="yaw-value">90</span>°</label>
-        <input id="yaw" type="range" min="30" max="150" value="90" />
-      </div>
+          <div class="field field-slider">
+            <label for="yaw">水平角 Yaw：<span id="yaw-value">90</span>°</label>
+            <input id="yaw" type="range" min="30" max="150" value="90" />
+          </div>
 
-      <div class="field field-slider">
-        <label for="pitch">俯仰角 Pitch：<span id="pitch-value">90</span>°</label>
-        <input id="pitch" type="range" min="45" max="135" value="90" />
+          <div class="field field-slider">
+            <label for="pitch">俯仰角 Pitch：<span id="pitch-value">90</span>°</label>
+            <input id="pitch" type="range" min="45" max="135" value="90" />
+          </div>
+        </section>
       </div>
     </section>
 
