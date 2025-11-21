@@ -180,3 +180,270 @@ typedef struct
 - 根据用户操作（虚拟摇杆、按键等）周期性地发送上述 JSON 控制消息即可。
 
 在这种设计下，STM32 固件始终只需要理解一种非常简单的 UART 协议，不关心网络层和网页实现细节，后续要更换 Web UI 或上位机实现也会比较轻松。
+
+---
+
+## 5. ESP32-CAM 固件实现要点
+
+ESP32-CAM 端的固件在 `esp32_cam/CameraWebServer/CameraWebServer.ino` 与 `app_httpd.cpp` 中实现，核心职责：
+
+- 通过 Wi-Fi 加入局域网；
+- 提供摄像头 HTTP 服务（视频流 + 拍照 + 参数控制）；
+- 启动一个 WebSocket 服务器，接收来自 Web UI 的 JSON 控制指令；
+- 将 JSON 指令转换为 STM32 所需的 UART 文本命令 `C,thr,steer,yaw,pitch\n` 并通过 `Serial2` 下发。
+
+### 5.1 UART 接口
+
+- 使用 `Serial2` 作为控制串口：
+
+  ```cpp
+  static const int UART_RX_PIN = 12;   // 连接 STM32 PA10 (USART1_RX)
+  static const int UART_TX_PIN = 13;   // 连接 STM32 PA9  (USART1_TX)
+  static const unsigned long UART_BAUD = 115200;
+
+  HardwareSerial &ControlSerial = Serial2;
+
+  ControlSerial.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
+  ```
+
+- 波特率与 STM32 一致：**115200 8N1**。
+
+### 5.2 WebSocket 控制通道（单客户端占用）
+
+- 监听端口：`8765`；
+- 默认控制地址示例：`ws://<ESP32_IP>:8765/ws_control`；
+- 使用 `WebSocketsServer controlWs(8765);`，事件回调：
+
+  ```cpp
+  void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+    // WStype_CONNECTED / WStype_DISCONNECTED / WStype_TEXT
+  }
+  ```
+
+- **单客户端占用控制权**：
+  - 当有新客户端连接时，如果之前已有控制客户端，则旧客户端会被 `disconnect()` 掉；
+  - 只有当前持有控制权的客户端发送的文本帧会被用于生成 UART 命令。
+
+### 5.3 JSON → UART 文本桥接
+
+处理函数 `handleControlJson()`：
+
+```cpp
+void handleControlJson(const char *data, size_t len) {
+  StaticJsonDocument<256> doc;
+  DeserializationError err = deserializeJson(doc, data, len);
+  if (err) {
+    return;
+  }
+
+  const char *type = doc["type"];
+  if (!type || strcmp(type, "control") != 0) {
+    return;
+  }
+
+  int throttle = doc["throttle"] | 0;
+  int steer    = doc["steer"]    | 0;
+  int yaw      = doc["yaw"]      | -1;
+  int pitch    = doc["pitch"]    | -1;
+
+  throttle = constrain(throttle, -100, 100);
+  steer    = constrain(steer,    -100, 100);
+  // yaw/pitch 在 [-1, 180] 范围内裁剪
+
+  char buf[64];
+  int n = snprintf(buf, sizeof(buf), "C,%d,%d,%d,%d\n", throttle, steer, yaw, pitch);
+  if (n > 0) {
+    ControlSerial.write((const uint8_t *)buf, n);  // 发送给 STM32
+  }
+}
+```
+
+对应 Web UI 侧的 JSON 结构参见下文 6.1。
+
+### 5.4 摄像头 HTTP 接口
+
+在 `app_httpd.cpp` 中，沿用官方 CameraWebServer 的 HTTP 端点（基于 `httpd`）：
+
+- `GET /`：内置摄像头调试页面（原生 UI，可选）；
+- `GET /stream`：MJPEG 视频流（通常监听在端口 `81`）；
+- `GET /capture`：抓拍一张 JPEG 图片（便于 Web UI 显示缩略图）；
+- `GET /control?var=...&val=...`：设置摄像头参数/补光灯等，其中：
+  - `var=led_intensity&val=0..255`：控制 ESP32-CAM 补光灯亮度；
+
+抓拍时补光灯的逻辑：
+
+- 若灯当前由 `led_intensity` 打开，则 `/capture` 在拍照时**不会强制关灯**，避免肉眼可见闪烁；
+- 若灯当前关闭，则 `/capture` 会在拍照前短暂点亮再关闭，以保证画面亮度。
+
+---
+
+## 6. Web UI 与 iStoreOS 部署
+
+### 6.1 Web UI 功能与配置
+
+Web 前端位于 `web/` 目录：
+
+- `index.html`：布局结构（视频预览、当前状态、控制面板等）；
+- `style.css`：响应式样式、按钮和图标；
+- `main.js`：WebSocket 控制逻辑、虚拟摇杆/按键、视频加载、拍照与补光灯控制。
+
+#### 6.1.1 WebSocket 与视频流地址
+
+在 `index.html` 顶部工具栏中可以直接配置：
+
+- **WebSocket 地址**（默认示例）：
+
+  ```text
+  ws://192.168.31.140:8765/ws_control
+  ```
+
+  根据实际 ESP32-CAM IP 修改即可，例如：
+
+  ```text
+  ws://<ESP32_IP>:8765/ws_control
+  ```
+
+- **视频流地址**（默认示例）：
+
+  ```text
+  http://192.168.31.140:81/stream
+  ```
+
+  一般形式为：
+
+  ```text
+  http://<ESP32_IP>:81/stream
+  ```
+
+在 `main.js` 中：
+
+- WebSocket 以 `JSON` 向 ESP32-CAM 周期性发送控制消息（约每 100ms 一次）：
+
+  ```jsonc
+  {
+    "type": "control",
+    "throttle": 0,   // -100..100
+    "steer": 0,      // -100..100
+    "yaw": 90,       // 绝对角度，15..165
+    "pitch": 90      // 绝对角度，15..150
+  }
+  ```
+
+- Yaw/Pitch 的 UI 限幅与 STM32 固件保持一致：
+  - `YAW_MIN = 15, YAW_MAX = 165`；
+  - `PITCH_MIN = 15, PITCH_MAX = 150`。
+
+#### 6.1.2 拍照与补光灯
+
+- 视频右上角的拍照按钮：
+  - 根据视频流地址推导 `http://<ESP32_IP>/capture`；
+  - 抓拍结果仅用于更新“当前状态”卡片右侧缩略图，不再新开标签页；
+  - 点击缩略图会在当前页面弹出大图预览，支持长按/右键保存。
+
+- 灯光按钮：
+  - 根据视频流地址推导 `http://<ESP32_IP>/control?var=led_intensity&val=0|255`；
+  - 使用 `fetch(..., { mode: "no-cors" })` 触发请求，只控制亮灭状态，不关心返回内容。
+
+#### 6.1.3 UI 布局示意与截图
+
+Web UI 主要由三块组成：
+
+- 顶部：连接状态与配置
+  - 左侧：标题 `SmallCar 远程控制`；
+  - 右侧：WebSocket 地址输入框 + 连接按钮 + 彩色状态灯（未连接/已连接/错误）。
+- 中间：视频预览 + 悬浮控制
+  - 大面积视频框，用 `<img>` 播放 `http://<ESP32_IP>:81/stream`；
+  - 右上角悬浮拍照 / 开灯按钮；
+  - 在手机横屏且高度较小时，会在视频上显示两个半透明控制面板：左侧为小车方向键，右侧为云台方向键，上方有一个当前油门/转向/云台角度的状态气泡。
+- 底部：详细控制面板
+  - 左侧：小车运动（8 向按键 + 速度挡位）；
+  - 右侧：云台控制（方向按键 + 滑块角度显示）；
+  - 中间有“当前状态”卡片，左侧显示 T/S/Y/P 数值，右侧为最近拍照缩略图。
+
+当前仓库中在 `doc/image/` 下已经包含三张实际运行截图：
+
+```markdown
+![Web UI 桌面布局（PC）](image/pc.jpg)
+![Web UI 手机竖屏布局（Phone）](image/phone.jpg)
+![Web UI 手机横屏悬浮布局（Phone2）](image/phone2.jpg)
+```
+
+### 6.2 在 iStoreOS / OpenWrt 上部署 Web UI
+
+为了方便在路由器上长期运行 Web 控制面板，本仓库提供了一键部署脚本 `deploy_istoreos.sh`，适用于 iStoreOS / 大多数 OpenWrt 系发行版。
+
+#### 6.2.1 前提条件
+
+- 路由器系统：iStoreOS 或兼容的 OpenWrt；
+- 具备 SSH 访问权限（`root` 用户）；
+- 已安装 `uhttpd`（通常在 `/usr/sbin/uhttpd`）。
+
+#### 6.2.2 部署步骤
+
+1. **将项目拷贝到路由器**（例如放在 `/root/smallcar`）：
+
+   ```bash
+   # 在 PC 上执行，假设路由器 IP 为 192.168.31.1
+   scp -r smallcar root@192.168.31.1:/root/
+   ```
+
+2. **SSH 登陆路由器并运行部署脚本**：
+
+   ```sh
+   ssh root@192.168.31.1
+   cd /root/smallcar
+   sh deploy_istoreos.sh
+   ```
+
+   脚本将会：
+
+   - 将 `web/` 目录拷贝到 `/www/smallcar`；
+   - 创建 `/etc/init.d/smallcar-web` 服务脚本（若已存在则保留原脚本，仅更新静态文件）；
+   - 启用并启动 `smallcar-web` 服务（由 procd 管理，支持异常退出自动重启、开机自启）。
+
+3. **访问地址**：
+
+   ```text
+   http://<路由器 IP>:8090/
+   ```
+
+   示例：`http://192.168.31.1:8090/`。
+
+#### 6.2.3 smallcar-web 服务管理
+
+在路由器的 SSH 命令行中，可以通过 init 脚本管理 Web 服务：
+
+```sh
+/etc/init.d/smallcar-web start      # 启动服务
+/etc/init.d/smallcar-web stop       # 停止服务
+/etc/init.d/smallcar-web restart    # 重启服务
+/etc/init.d/smallcar-web enable     # 开机自启
+/etc/init.d/smallcar-web disable    # 取消开机自启
+```
+
+- 服务使用 `uhttpd` 独立监听端口 **8090**，不影响系统原有 Web 管理界面；
+- `procd_set_param respawn` 使得进程异常退出时会自动拉起，实现“Web 挂死自动重启”。
+
+#### 6.2.4 Web UI 更新流程
+
+当修改了 `web/` 目录中的 HTML/CSS/JS 后，更新 iStoreOS 上的部署只需要：
+
+1. 在本地拉取/修改完最新代码后，将仓库（或至少 `web/` 与 `deploy_istoreos.sh`）重新拷贝到路由器，例如：
+
+   ```bash
+   scp -r smallcar root@192.168.31.1:/root/
+   ```
+
+2. SSH 登陆路由器，重新执行部署脚本：
+
+   ```sh
+   ssh root@192.168.31.1
+   cd /root/smallcar
+   sh deploy_istoreos.sh
+   ```
+
+   该脚本是幂等的：
+
+   - 会覆盖 `/www/smallcar` 下的静态 Web 文件为当前版本；
+   - 自动重启 `smallcar-web` 服务，使修改立即生效；
+   - 无需手动 stop/start 服务。

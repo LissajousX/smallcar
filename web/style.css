@@ -881,6 +881,13 @@ button.danger:hover {
   .panel-status {
     display: none;
   }
+
+  /* 横屏悬浮模式下，将状态气泡移动到左侧小车控制上方，避免与右上角拍照/开灯按钮重叠 */
+  .overlay-status-chip {
+    left: 16px;
+    right: auto;
+    top: 10px;
+  }
 }
 
 /* 桌面等宽屏：视频在上，下面两列分别放小车和云台，左右对称 */

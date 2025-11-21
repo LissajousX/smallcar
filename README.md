@@ -22,9 +22,17 @@ smallcar/
 ├─ doc/                        # 文档：协议、键位映射、引脚等
 │   ├─ ps2_protocol.md         # PS2 手柄协议与 STM32 接线/时序说明
 │   ├─ ps2_keymap.md           # PS2 键位与控制映射 + Data[] 实测
-│   └─ pins.md                 # 引脚定义汇总（电机/PS2/云台）
+│   ├─ pins.md                 # 引脚定义汇总（电机/PS2/云台）
+│   └─ remote_control.md       # ESP32-CAM + Web + STM32 远程控制架构与协议
+├─ esp32_cam/                  # ESP32-CAM 摄像头 + WebSocket + UART 网关固件
+│   └─ CameraWebServer/...
+├─ web/                        # 浏览器端 Web 控制面板（静态 HTML/CSS/JS）
+│   ├─ index.html              # 主页面结构（视频预览 + 控制面板）
+│   ├─ style.css               # 布局与样式（响应式 + 悬浮控制）
+│   └─ main.js                 # WebSocket 控制逻辑 + UI 交互
+├─ deploy_istoreos.sh          # 一键将 web/ 部署到 iStoreOS/OpenWrt 的脚本
 ├─ .gitignore                  # Git 忽略规则
-├─ README.md                   # 本项目说明
+├─ README.md                   # 本项目说明（当前文档）
 └─ smallcar_keil/              # **当前主工程（Keil µVision5）**
     ├─ main.c                  # 主循环和 PS2 控制逻辑
     ├─ motor.c / motor.h       # 电机驱动（TB6612 + TIM3 PWM）
@@ -37,6 +45,14 @@ smallcar/
 ```
 
 实际开发/编译主要使用 `smallcar_keil` 目录。
+
+---
+
+## Web UI 截图（PC）
+
+下图为当前基于浏览器的 SmallCar 远程控制面板（桌面端）示意：
+
+![SmallCar Web 控制界面（PC）](doc/image/pc.jpg)
 
 ---
 
@@ -177,7 +193,7 @@ smallcar/
 
 2. 打开 Keil 工程 `smallcar_keil.uvprojx`，编译并下载到 STM32F103C8T6。
 
-3. 打开 PS2 手柄，切换到 **模拟模式 M1**（`Data[1] = 0x73`，具体可在调试时查看 `Data[1]`）。在数字模式 M0 下，也可以用方向键 + L1/L2/R1/R2 驱动小车，只是摇杆模拟量被忽略。
+3. 打开 PS2 手柄，切换到 **模拟模式 M1**（`Data[1] = 0x73`，具体可在调试时查看 `Data[1]`). 在数字模式 M0 下，也可以用方向键 + L1/L2/R1/R2 驱动小车，只是摇杆模拟量被忽略。
 
 4. 测试：
    - 使用 SELECT 按键切换速度挡位（60% / 80% / 100%）；
@@ -205,12 +221,97 @@ smallcar/
 
 ---
 
-## 9. 许可协议
+## 附录：ESP32-CAM + Web 远程控制与部署（概览）
 
-本项目采用 **MIT License** 开源协议发布。
+ 本仓库在原有 STM32 + PS2 遥控小车的基础上，增加了一个 **基于 ESP32-CAM + Web 浏览器的远程控制链路**：
 
-- 你可以自由地使用、复制、修改、合并、出版、分发本项目代码，甚至用于商业用途；
-- 唯一要求是在所有副本或重要部分中保留原始的版权声明和许可声明；
-- 本项目代码按“现状（AS IS）”提供，不提供任何形式的担保，作者不对任何使用造成的损失负责。
+ ```text
+ 浏览器（Web UI）
+     ↓ WebSocket / HTTP（局域网）
+ ESP32-CAM（视频 + 控制网关）
+     ↓ UART（3.3V TTL，ASCII 文本协议）
+ STM32F103C8T6（smallcar_keil 固件）
+     ↓
+ 四轮差速底盘 + 双舵机云台
+ ```
 
-详细条款请参见仓库根目录的 `LICENSE` 文件（MIT License 原文）。
+ - Web UI（`web/`）负责：
+   - 加载 ESP32-CAM 的视频流（例如 `http://<ESP32_IP>:81/stream`）；
+   - 提供按键 / 虚拟摇杆 / 云台滑块等控制；
+   - 通过 WebSocket 周期性发送 JSON 控制消息给 ESP32-CAM；
+   - 支持在页面内拍照预览、控制补光灯，并在横屏手机上显示悬浮控制面板。
+ - ESP32-CAM 固件（`esp32_cam/CameraWebServer`）：
+   - 运行 HTTP 摄像头服务（`/stream`、`/capture`、`/control?...`）；
+   - 暴露 WebSocket 端点 `ws://<ESP32_IP>:8765/ws_control`（单客户端占用控制权）；
+   - 将收到的 JSON 控制指令转换为 UART 文本命令 `C,throttle,steer,yaw,pitch\n`，下发给 STM32。
+ - STM32 固件（`smallcar_keil/`）：
+   - 通过 USART1 接收上述 UART 文本协议，并在最近一段时间内优先使用远程命令覆盖 PS2 控制。
+
+ 详细协议与实现细节请参见 `doc/remote_control.md`.
+
+ ### 在 iStoreOS/OpenWrt 上部署与更新 Web 控制面板
+
+ 该仓库提供脚本 `deploy_istoreos.sh`，用于在 iStoreOS/OpenWrt 路由器上一键部署 Web 控制面板：
+
+ 1. 将仓库（包含 `web/` 与 `deploy_istoreos.sh`）拷贝到路由器，例如：
+
+    ```bash
+    # 在 PC 上执行，假设路由器 IP 为 192.168.31.1
+    scp -r smallcar root@192.168.31.1:/root/
+    ```
+
+ 2. SSH 登陆路由器并执行脚本：
+
+    ```sh
+    ssh root@192.168.31.1
+    cd /root/smallcar
+    sh deploy_istoreos.sh
+    ```
+
+    脚本会：
+
+    - 将 `web/` 拷贝到 `/www/smallcar`；
+    - 创建或复用 `/etc/init.d/smallcar-web` 服务脚本（使用 `uhttpd` + procd）；
+    - 启用并启动 `smallcar-web` 服务，实现开机自启与进程挂死自动重启。
+
+ 3. 在浏览器访问：
+
+    ```text
+    http://<路由器 IP>:8090/
+    ```
+
+ #### Web UI 更新流程
+
+ 当本地修改了 `web/` 中的 HTML/CSS/JS 后，更新部署只需：
+
+ 1. 重新将更新后的仓库（或至少 `web/` 与 `deploy_istoreos.sh`）拷贝到路由器；
+ 2. 再次在路由器上执行：
+
+    ```sh
+    cd /root/smallcar
+    sh deploy_istoreos.sh
+    ```
+
+    该脚本是幂等的：会覆盖 `/www/smallcar` 中的静态文件并重启 `smallcar-web` 服务，无需手动 stop/start。
+
+ 此外，可以通过以下命令手动管理服务：
+
+ ```sh
+ /etc/init.d/smallcar-web start      # 启动服务
+ /etc/init.d/smallcar-web stop       # 停止服务
+ /etc/init.d/smallcar-web restart    # 重启服务
+ /etc/init.d/smallcar-web enable     # 开机自启
+ /etc/init.d/smallcar-web disable    # 取消开机自启
+ ```
+
+ 更多关于 Web UI 布局、ESP32-CAM 行为与 iStoreOS 部署的说明，参见：`doc/remote_control.md`.
+
+ ## 9. 许可协议
+
+ 本项目采用 **MIT License** 开源协议发布。
+
+ - 你可以自由地使用、复制、修改、合并、出版、分发本项目代码，甚至用于商业用途；
+ - 唯一要求是在所有副本或重要部分中保留原始的版权声明和许可声明；
+ - 本项目代码按“现状（AS IS）”提供，不提供任何形式的担保，作者不对任何使用造成的损失负责。
+
+ 详细条款请参见仓库根目录的 `LICENSE` 文件（MIT License 原文）。
