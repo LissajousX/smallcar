@@ -362,11 +362,9 @@ Web UI 主要由三块组成：
 
 当前仓库中在 `doc/image/` 下已经包含三张实际运行截图：
 
-```markdown
 ![Web UI 桌面布局（PC）](image/pc.jpg)
 ![Web UI 手机竖屏布局（Phone）](image/phone.jpg)
 ![Web UI 手机横屏悬浮布局（Phone2）](image/phone2.jpg)
-```
 
 ### 6.2 在 iStoreOS / OpenWrt 上部署 Web UI
 
