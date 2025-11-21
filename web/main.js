@@ -620,7 +620,7 @@
       return;
     }
 
-    const target = e.target;
+    const target = e.target || document.activeElement;
     if (
       target &&
       (target.tagName === "INPUT" ||
@@ -698,7 +698,7 @@
   });
 
   window.addEventListener("keyup", (e) => {
-    const target = e.target;
+    const target = e.target || document.activeElement;
     if (
       target &&
       (target.tagName === "INPUT" ||
