@@ -58,7 +58,6 @@
 
   const videoUrlInput = document.getElementById("video-url");
   const videoLoadBtn = document.getElementById("video-load-btn");
-  const videoStopBtn = document.getElementById("video-stop-btn");
   const videoView = document.getElementById("video-view");
 
   const driveJoystick = document.getElementById("drive-joystick");
@@ -80,6 +79,7 @@
 
   let ws = null;
   let sendTimer = null;
+  let videoActive = false; // 当前是否在播放流
 
   const state = {
     throttle: 0,
@@ -785,32 +785,40 @@
   // 初始 UI 状态
   updateLabels();
 
-  // 视频预览加载 / 停止 按钮
+  // 视频预览加载 / 停止 按钮（单键切换）
   if (videoLoadBtn && videoUrlInput && videoView) {
     // 如果加载失败，回退到占位图
     videoView.addEventListener("error", () => {
       if (!videoView.src.includes(VIDEO_PLACEHOLDER)) {
         videoView.src = VIDEO_PLACEHOLDER;
       }
+      videoActive = false;
+      videoLoadBtn.textContent = "加载";
     });
 
     const loadVideo = () => {
       const url = videoUrlInput.value.trim();
       if (!url) {
         videoView.src = VIDEO_PLACEHOLDER;
+        videoActive = false;
+        videoLoadBtn.textContent = "加载";
         return;
       }
       videoView.src = url;
+      videoActive = true;
+      videoLoadBtn.textContent = "停止";
     };
 
-    videoLoadBtn.addEventListener("click", loadVideo);
-
-    if (videoStopBtn) {
-      videoStopBtn.addEventListener("click", () => {
-        // 停止当前流，只切回占位图，不清空地址栏
+    videoLoadBtn.addEventListener("click", () => {
+      // 当前是流就停止，当前是占位图就加载
+      if (videoActive && !videoView.src.includes(VIDEO_PLACEHOLDER)) {
         videoView.src = VIDEO_PLACEHOLDER;
-      });
-    }
+        videoActive = false;
+        videoLoadBtn.textContent = "加载";
+      } else {
+        loadVideo();
+      }
+    });
 
     // 视频未加载（占位图）时，点击视频区域等效于点击“加载”按钮
     videoView.addEventListener("click", () => {
