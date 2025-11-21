@@ -6,10 +6,10 @@
 #include <stdlib.h>
 
 #define PS2_DEBUG_TEST        0
-#define YAW_MIN_ANGLE         30U
-#define YAW_MAX_ANGLE         150U
-#define PITCH_MIN_ANGLE       45U
-#define PITCH_MAX_ANGLE       135U
+#define YAW_MIN_ANGLE         15U
+#define YAW_MAX_ANGLE         165U
+#define PITCH_MIN_ANGLE       15U
+#define PITCH_MAX_ANGLE       150U
 #define SERVO_STEP_ANGLE      2U
 #define UART_RX_BUF_SIZE      64U
 #define REMOTE_TIMEOUT_LOOPS  50U

@@ -96,11 +96,11 @@
   const GIMBAL_STEP = 3;
 
   // 与 STM32 固件 main.c 中的角度限制保持一致
-  // YAW_MIN_ANGLE 30, YAW_MAX_ANGLE 150, PITCH_MIN_ANGLE 45, PITCH_MAX_ANGLE 135
-  const YAW_MIN = 30;
-  const YAW_MAX = 150;
-  const PITCH_MIN = 45;
-  const PITCH_MAX = 135;
+  // YAW_MIN_ANGLE 15, YAW_MAX_ANGLE 165, PITCH_MIN_ANGLE 15, PITCH_MAX_ANGLE 150
+  const YAW_MIN = 15;
+  const YAW_MAX = 165;
+  const PITCH_MIN = 15;
+  const PITCH_MAX = 150;
 
   const SPEED_LEVELS = [60, 80, 100];
   const SPEED_LABELS = ["低", "中", "高"];
@@ -353,7 +353,8 @@
     const json = JSON.stringify(payload);
     ws.send(json);
     if (lastPayloadView) {
-      lastPayloadView.textContent = json;
+      const cmd = `C,${payload.throttle},${payload.steer},${payload.yaw},${payload.pitch}`;
+      lastPayloadView.textContent = cmd;
     }
   }
 

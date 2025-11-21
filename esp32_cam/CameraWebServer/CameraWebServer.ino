@@ -49,6 +49,7 @@ static const unsigned long UART_BAUD = 115200;
 HardwareSerial &ControlSerial = Serial2;
 WebSocketsServer controlWs(8765);
 bool wsClientConnected = false;
+uint8_t wsClientId = 0xFF;  // 当前占用控制权的客户端编号
 
 void startCameraServer();
 void setupLedFlash(int pin);
@@ -104,14 +105,26 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
       Serial.print(num);
       Serial.print("] connected from ");
       Serial.println(ip);
+      // 若已有旧连接，占用控制权的新连接会挤掉旧连接
+      if (wsClientConnected && wsClientId != num) {
+        Serial.print("WS[");
+        Serial.print(wsClientId);
+        Serial.println("] dropped (replaced by new client)");
+        controlWs.disconnect(wsClientId);
+      }
       wsClientConnected = true;
+      wsClientId = num;
       break;
     }
     case WStype_DISCONNECTED:
       Serial.print("WS[");
       Serial.print(num);
       Serial.println("] disconnected");
-      wsClientConnected = false;
+      // 只在当前控制客户端断开时，才清除标记
+      if (num == wsClientId) {
+        wsClientConnected = false;
+        wsClientId = 0xFF;
+      }
       break;
     case WStype_TEXT:
       if (length > 0) {
