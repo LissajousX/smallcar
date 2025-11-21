@@ -43,6 +43,14 @@
       </div>
       <div class="video-box">
         <img id="video-view" alt="视频预览" src="placeholder-video.svg" />
+        <div class="video-tools">
+          <button id="video-snapshot-btn" class="video-tool-btn" aria-label="拍照">
+            <span class="video-tool-icon camera-icon"></span>
+          </button>
+          <button id="video-light-btn" class="video-tool-btn" aria-label="灯光">
+            <span class="video-tool-icon light-icon"></span>
+          </button>
+        </div>
         <div class="video-overlay">
           <div class="overlay-panel overlay-drive">
             <div class="overlay-header">
@@ -97,15 +105,16 @@
       <h2>当前状态</h2>
       <div class="status-grid">
         <div class="status-item">
-          <div class="status-label">油门 / 转向 / 云台角度 / 指令</div>
+          <div class="status-label">油门 / 转向 / 云台角度</div>
           <div class="status-value">
             T<span id="status-throttle">0</span>
             S<span id="status-steer">0</span>
             Y<span id="status-yaw">90</span>°
             P<span id="status-pitch">90</span>°
-            |
-            <span class="status-payload" id="last-payload">--</span>
           </div>
+        </div>
+        <div class="status-thumb">
+          <img id="snapshot-thumb" src="placeholder-video.svg" alt="缩略图预览" />
         </div>
       </div>
     </section>
@@ -207,6 +216,14 @@
     </section>
 
   </main>
+
+  <div id="snapshot-modal" class="snapshot-modal">
+    <div class="snapshot-modal-content">
+      <button id="snapshot-modal-close" class="snapshot-modal-close" aria-label="关闭预览">×</button>
+      <img id="snapshot-modal-img" alt="照片预览" />
+      <div class="snapshot-modal-hint">长按（手机）或右键（电脑）图片可以保存到本地</div>
+    </div>
+  </div>
 
   <script src="main.js"></script>
 </body>

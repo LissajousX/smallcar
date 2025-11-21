@@ -59,6 +59,8 @@
   const videoUrlInput = document.getElementById("video-url");
   const videoLoadBtn = document.getElementById("video-load-btn");
   const videoView = document.getElementById("video-view");
+  const snapshotBtn = document.getElementById("video-snapshot-btn");
+  const lightBtn = document.getElementById("video-light-btn");
 
   const driveJoystick = document.getElementById("drive-joystick");
   const driveStick = document.getElementById("drive-stick");
@@ -66,6 +68,10 @@
   const gimbalStick = document.getElementById("gimbal-stick");
 
   const lastPayloadView = document.getElementById("last-payload");
+  const snapshotThumb = document.getElementById("snapshot-thumb");
+  const snapshotModal = document.getElementById("snapshot-modal");
+  const snapshotModalImg = document.getElementById("snapshot-modal-img");
+  const snapshotModalClose = document.getElementById("snapshot-modal-close");
 
   const statusThrottle = document.getElementById("status-throttle");
   const statusSteer = document.getElementById("status-steer");
@@ -80,6 +86,7 @@
   let ws = null;
   let sendTimer = null;
   let videoActive = false; // 当前是否在播放流
+  let lightOn = false; // 补光灯当前状态
 
   const state = {
     throttle: 0,
@@ -795,7 +802,7 @@
 
   updateSpeedGearLabel();
 
-   // 触屏设备上，禁止在按钮类控件上长按弹出复制/菜单
+  // 触屏设备上，禁止在按钮类控件上长按弹出复制/菜单
   if (isTouchDevice()) {
     window.addEventListener("contextmenu", (e) => {
       const target = e.target;
@@ -820,7 +827,7 @@
   // 初始 UI 状态
   updateLabels();
 
-  // 视频预览加载 / 停止 按钮（单键切换）
+  // 视频预览加载 / 停止 按钮（单键切换）+ 拍照 + 补光灯
   if (videoLoadBtn && videoUrlInput && videoView) {
     // 如果加载失败，回退到占位图
     videoView.addEventListener("error", () => {
@@ -861,6 +868,103 @@
         loadVideo();
       }
     });
+
+    // 拍照按钮：根据视频流地址推导 ESP32-CAM 的 /capture 地址
+    if (snapshotBtn) {
+      snapshotBtn.addEventListener("click", () => {
+        const url = videoUrlInput.value.trim();
+        if (!url) {
+          alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
+          return;
+        }
+
+        let captureUrl = null;
+        try {
+          const u = new URL(url, window.location.href);
+          if (u.protocol !== "http:" && u.protocol !== "https:") {
+            throw new Error("invalid protocol");
+          }
+          // ESP32-CAM 默认 /capture 在 HTTP 主端口（通常是 80），与 :81/stream 分开
+          captureUrl = `${u.protocol}//${u.hostname}/capture`;
+        } catch (e) {
+          alert("视频流地址格式不正确，请检查，例如 http://192.168.31.140:81/stream");
+          return;
+        }
+
+        // 为避免浏览器缓存，附加时间戳参数
+        const tsUrl = `${captureUrl}?t=${Date.now()}`;
+
+        // 仅更新当前状态右侧缩略图预览
+        if (snapshotThumb) {
+          snapshotThumb.src = tsUrl;
+        }
+      });
+    }
+
+    // 点击当前状态中的缩略图，在当前页面弹出大图预览
+    if (snapshotThumb && snapshotModal && snapshotModalImg) {
+      snapshotThumb.addEventListener("click", () => {
+        const src = snapshotThumb.src || "";
+        if (!src || src.includes(VIDEO_PLACEHOLDER)) {
+          return;
+        }
+        snapshotModalImg.src = src;
+        snapshotModal.classList.add("visible");
+      });
+
+      // 点击遮罩空白处关闭预览（点击内容区域不关闭）
+      snapshotModal.addEventListener("click", (e) => {
+        if (e.target === snapshotModal) {
+          snapshotModal.classList.remove("visible");
+        }
+      });
+    }
+
+    // 右上角关闭按钮关闭预览
+    if (snapshotModal && snapshotModalClose) {
+      snapshotModalClose.addEventListener("click", () => {
+        snapshotModal.classList.remove("visible");
+      });
+    }
+
+    // 开灯按钮：通过 /control?var=led_intensity 切换补光灯
+    if (lightBtn) {
+      lightBtn.addEventListener("click", () => {
+        const url = videoUrlInput.value.trim();
+        if (!url) {
+          alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
+          return;
+        }
+
+        let controlUrl = null;
+        try {
+          const u = new URL(url, window.location.href);
+          if (u.protocol !== "http:" && u.protocol !== "https:") {
+            throw new Error("invalid protocol");
+          }
+          const val = lightOn ? 0 : 255;
+          // /control 运行在 HTTP 主端口（通常 80）
+          controlUrl = `${u.protocol}//${u.hostname}/control?var=led_intensity&val=${val}`;
+        } catch (e) {
+          alert("视频流地址格式不正确，请检查，例如 http://192.168.31.140:81/stream");
+          return;
+        }
+
+        // 只需触发请求，不关心响应内容
+        try {
+          fetch(controlUrl, { mode: "no-cors" }).catch(() => {});
+        } catch (e) {
+          // 忽略浏览器环境中 fetch 不可用等异常
+        }
+
+        lightOn = !lightOn;
+        if (lightOn) {
+          lightBtn.classList.add("active");
+        } else {
+          lightBtn.classList.remove("active");
+        }
+      });
+    }
   }
 
   // 页面加载与横竖屏切换时，自动把横屏小高度场景下的视频滚动到合适位置
