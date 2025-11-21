@@ -58,6 +58,7 @@
 
   const videoUrlInput = document.getElementById("video-url");
   const videoLoadBtn = document.getElementById("video-load-btn");
+  const videoStopBtn = document.getElementById("video-stop-btn");
   const videoView = document.getElementById("video-view");
 
   const driveJoystick = document.getElementById("drive-joystick");
@@ -784,7 +785,7 @@
   // 初始 UI 状态
   updateLabels();
 
-  // 视频预览加载按钮
+  // 视频预览加载 / 停止 按钮
   if (videoLoadBtn && videoUrlInput && videoView) {
     // 如果加载失败，回退到占位图
     videoView.addEventListener("error", () => {
@@ -803,6 +804,13 @@
     };
 
     videoLoadBtn.addEventListener("click", loadVideo);
+
+    if (videoStopBtn) {
+      videoStopBtn.addEventListener("click", () => {
+        // 停止当前流，只切回占位图，不清空地址栏
+        videoView.src = VIDEO_PLACEHOLDER;
+      });
+    }
 
     // 视频未加载（占位图）时，点击视频区域等效于点击“加载”按钮
     videoView.addEventListener("click", () => {
