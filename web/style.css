@@ -375,7 +375,7 @@ button.danger:hover {
 .video-overlay {
   position: absolute;
   inset: 0;
-  display: flex;
+  display: none; /* 默认在普通布局下不显示也不响应事件 */
   align-items: center;
   justify-content: space-between;
   padding: 10px;
@@ -724,6 +724,7 @@ button.danger:hover {
   }
 
   .video-overlay {
+    display: flex;      /* 仅在横屏且高度较小的模式下启用悬浮控制 */
     opacity: 1;
     pointer-events: auto;
   }

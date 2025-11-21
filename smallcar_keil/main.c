@@ -436,7 +436,7 @@ int main(void)
                 if (base == 0 && steer_remote != 0)
                 {
                     /* 串口遥控：throttle = 0 且 steer != 0 时，做原地左/右转 */
-                    int16_t spin = (int16_t)((int32_t)((steer_remote >= 0) ? steer_remote : -steer_remote) * speed_percent / 100);
+                    int16_t spin = speed_percent;
                     if (spin > 100)
                     {
                         spin = 100;

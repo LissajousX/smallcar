@@ -300,7 +300,6 @@
     yawInput.value = String(state.yaw);
     pitchInput.value = String(state.pitch);
     updateLabels();
-    sendOnce();
   }
 
   function bindGimbalButton(el, dYaw, dPitch) {
@@ -362,7 +361,7 @@
     if (sendTimer) {
       clearInterval(sendTimer);
     }
-    const interval = 50; // 固定发送周期，单位 ms
+    const interval = 100; // 固定发送周期，单位 ms，适当放缓以减轻网络压力
     sendTimer = setInterval(sendOnce, interval);
   }
 
@@ -416,6 +415,9 @@
       ws.close();
       ws = null;
     }
+    setStatus("未连接", "status-disconnected");
+    wsBtn.textContent = "连接";
+    stopSending();
   }
 
   function setupJoystick(area, stick, onChange) {
@@ -616,34 +618,16 @@
     if (ovDriveSE) bindDirectionButton(ovDriveSE, "BR");
   }
 
-  window.addEventListener("keydown", (e) => {
-    if (e.repeat) {
+  let gimbalKeyTimer = null;
+  let gimbalKeyCode = null;
+
+  function startGimbalKeyRepeat(code) {
+    if (gimbalKeyTimer && gimbalKeyCode === code) {
       return;
     }
+    stopGimbalKeyRepeat();
 
-    const target = e.target || document.activeElement;
-    if (
-      target &&
-      (target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable)
-    ) {
-      // 正在输入文本时，不触发全局快捷键，避免抢占输入
-      return;
-    }
-
-    const code = e.code || e.key;
-
-    setKeyActive(code, true);
-
-    // 方向键用于云台控制
-    if (
-      code === "ArrowUp" ||
-      code === "ArrowDown" ||
-      code === "ArrowLeft" ||
-      code === "ArrowRight"
-    ) {
-      e.preventDefault();
+    const stepOnce = () => {
       switch (code) {
         case "ArrowUp":
           // 云台抬头
@@ -664,6 +648,55 @@
         default:
           break;
       }
+    };
+
+    // 先执行一次，保持原来的“点按一步”的感觉
+    stepOnce();
+    gimbalKeyCode = code;
+    gimbalKeyTimer = setInterval(stepOnce, 80);
+  }
+
+  function stopGimbalKeyRepeat(code) {
+    if (code && code !== gimbalKeyCode) {
+      return;
+    }
+    if (gimbalKeyTimer) {
+      clearInterval(gimbalKeyTimer);
+      gimbalKeyTimer = null;
+    }
+    gimbalKeyCode = null;
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.repeat) {
+      // 依靠我们自己的定时器实现持续移动，忽略浏览器的 key repeat
+      return;
+    }
+
+    const target = e.target || document.activeElement;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      // 正在输入文本时，不触发全局快捷键，避免抢占输入
+      return;
+    }
+
+    const code = e.code || e.key;
+
+    setKeyActive(code, true);
+
+    // 方向键用于云台控制（支持长按）
+    if (
+      code === "ArrowUp" ||
+      code === "ArrowDown" ||
+      code === "ArrowLeft" ||
+      code === "ArrowRight"
+    ) {
+      e.preventDefault();
+      startGimbalKeyRepeat(code);
       return;
     }
 
@@ -714,13 +747,14 @@
 
     setKeyActive(code, false);
 
-    // 方向键用于云台控制，松开时不做额外处理
+    // 方向键用于云台控制，松开时停止持续移动
     if (
       code === "ArrowUp" ||
       code === "ArrowDown" ||
       code === "ArrowLeft" ||
       code === "ArrowRight"
     ) {
+      stopGimbalKeyRepeat(code);
       return;
     }
 
