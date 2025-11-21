@@ -620,6 +620,17 @@
       return;
     }
 
+    const target = e.target;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      // 正在输入文本时，不触发全局快捷键，避免抢占输入
+      return;
+    }
+
     const code = e.code || e.key;
 
     setKeyActive(code, true);
@@ -687,6 +698,17 @@
   });
 
   window.addEventListener("keyup", (e) => {
+    const target = e.target;
+    if (
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable)
+    ) {
+      // 文本输入控件内的按键松开也不参与全局快捷键逻辑
+      return;
+    }
+
     const code = e.code || e.key;
 
     setKeyActive(code, false);
