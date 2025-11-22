@@ -7,6 +7,7 @@ if ! id runner >/dev/null 2>&1; then
 fi
 
 chown -R runner:runner /actions-runner
+chown -R runner:runner /usr/share/nginx/html /var/www/html
 
 # 启动 nginx（后台守护进程）
 /usr/sbin/nginx
