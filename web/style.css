@@ -406,6 +406,14 @@ button.danger:hover {
   margin-bottom: 10px;
 }
 
+.field .small-btn {
+  margin-top: 4px;
+}
+
+.field .small-btn + .small-btn {
+  margin-left: 4px;
+}
+
 .field label {
   display: block;
   font-size: 13px;

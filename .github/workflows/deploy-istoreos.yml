@@ -17,8 +17,30 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect ESP32 firmware changes
+        id: esp32_changes
+        run: |
+          set -e
+          # 如果是仓库的第一次提交，默认认为固件有改动，需要构建
+          if [ "$(git rev-list --count HEAD)" -le 1 ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # 对比上一个提交，检查 esp32_cam/CameraWebServer 是否有变更
+          if git diff --quiet HEAD^ HEAD -- esp32_cam/CameraWebServer; then
+            echo "ESP32 firmware sources unchanged; skip firmware build." >&2
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ESP32 firmware sources changed; will build firmware." >&2
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build ESP32-CAM firmware (PlatformIO)
+        if: steps.esp32_changes.outputs.changed == 'true'
         run: |
           set -e
           cd esp32_cam/CameraWebServer
@@ -28,6 +50,7 @@ jobs:
           pio run -e esp32cam
 
       - name: Copy firmware .bin into Nginx document roots
+        if: steps.esp32_changes.outputs.changed == 'true'
         run: |
           set -e
           FIRMWARE_SRC="esp32_cam/CameraWebServer/.pio/build/esp32cam/firmware.bin"
