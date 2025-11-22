@@ -1,4 +1,4 @@
-name: Deploy SmallCar Web to iStoreOS
+name: Deploy SmallCar Web (Docker runner)
 
 on:
   push:
@@ -6,22 +6,21 @@ on:
       - main
     paths:
       - 'web/**'
-      - 'deploy_istoreos.sh'
   workflow_dispatch:
 
 jobs:
   deploy-web:
-    # 需要你在 iStoreOS 上配置一个 self-hosted runner，并打上 istoreos 标签
+    # 在带有 istoreos 标签的 self-hosted runner（Docker 容器）上运行
     runs-on: [self-hosted, istoreos]
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Make deploy script executable
-        run: chmod +x deploy_istoreos.sh
-
-      - name: Deploy web to local iStoreOS
+      - name: Deploy static web into Nginx document root
         run: |
-          echo "Running deploy_istoreos.sh on iStoreOS self-hosted runner..."
-          sh ./deploy_istoreos.sh
+          echo "Sync web/ to /usr/share/nginx/html inside Docker runner..."
+          rm -rf /usr/share/nginx/html/*
+          cp -a web/. /usr/share/nginx/html/
+          # 重载 nginx（如果已经在运行）
+          nginx -s reload || true
