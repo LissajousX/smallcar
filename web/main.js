@@ -1410,6 +1410,15 @@
           return;
         }
 
+        const ok = window.confirm(
+          `确定要将本机固件文件 “${file.name}” 刷写到 ESP32-CAM 吗？\n升级过程中请勿断电/刷新页面。`,
+        );
+        if (!ok) {
+          otaStatus.textContent = "已取消本地文件升级。";
+          otaStatus.style.color = "";
+          return;
+        }
+
         otaStatus.textContent = "正在上传固件并执行升级，请勿断电/刷新页面...";
         otaStatus.style.color = "#facc15";
 
@@ -1457,6 +1466,15 @@
 
         const routerBase = getRouterBase();
         const firmwareUrl = `${routerBase}/firmware/esp32cam-latest.bin`;
+
+        const ok = window.confirm(
+          `确定要从 ${firmwareUrl} 获取最新固件并刷写到当前 ESP32-CAM 吗？\n升级过程中请勿断电/刷新页面。`,
+        );
+        if (!ok) {
+          otaStatus.textContent = "已取消从路由器一键升级。";
+          otaStatus.style.color = "";
+          return;
+        }
 
         otaStatus.textContent = "正在从路由器获取最新固件...";
         otaStatus.style.color = "#facc15";
