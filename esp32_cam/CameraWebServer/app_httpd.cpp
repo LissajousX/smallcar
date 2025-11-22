@@ -561,7 +561,7 @@ static int print_reg(char *p, sensor_t *s, uint16_t reg, uint32_t mask) {
 
 // 固件构建信息，用于前端确认 OTA 升级是否生效
 #ifndef FW_VERSION
-#define FW_VERSION "dev"
+#define FW_VERSION "DEV"
 #endif
 #define FW_BUILD_STR __DATE__ " " __TIME__
 

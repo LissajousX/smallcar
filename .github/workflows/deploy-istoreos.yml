@@ -49,24 +49,6 @@ jobs:
           echo "FW_VERSION=$FW_VERSION"
           pio run -e esp32cam
 
-      - name: Copy firmware .bin into Nginx document roots
-        if: steps.esp32_changes.outputs.changed == 'true'
-        run: |
-          set -e
-          FIRMWARE_SRC="esp32_cam/CameraWebServer/.pio/build/esp32cam/firmware.bin"
-          if [ ! -f "$FIRMWARE_SRC" ]; then
-            echo "Firmware not found: $FIRMWARE_SRC"
-            exit 1
-          fi
-          VERSION=$(git rev-parse --short HEAD)
-          for ROOT in /usr/share/nginx/html /var/www/html; do
-            if [ -d "$ROOT" ]; then
-              mkdir -p "$ROOT/firmware"
-              cp "$FIRMWARE_SRC" "$ROOT/firmware/esp32cam-${VERSION}.bin"
-              cp "$FIRMWARE_SRC" "$ROOT/firmware/esp32cam-latest.bin"
-            fi
-          done
-
       - name: Deploy static web into Nginx document root
         run: |
           echo "Sync web/ to Nginx document roots inside Docker runner..."
@@ -84,3 +66,21 @@ jobs:
 
           # 重载 nginx（如果已经在运行）
           nginx -s reload || true
+
+      - name: Copy firmware .bin into Nginx document roots
+        if: steps.esp32_changes.outputs.changed == 'true'
+        run: |
+          set -e
+          FIRMWARE_SRC="esp32_cam/CameraWebServer/.pio/build/esp32cam/firmware.bin"
+          if [ ! -f "$FIRMWARE_SRC" ]; then
+            echo "Firmware not found: $FIRMWARE_SRC"
+            exit 1
+          fi
+          VERSION=$(git rev-parse --short HEAD)
+          for ROOT in /usr/share/nginx/html /var/www/html; do
+            if [ -d "$ROOT" ]; then
+              mkdir -p "$ROOT/firmware"
+              cp "$FIRMWARE_SRC" "$ROOT/firmware/esp32cam-${VERSION}.bin"
+              cp "$FIRMWARE_SRC" "$ROOT/firmware/esp32cam-latest.bin"
+            fi
+          done
