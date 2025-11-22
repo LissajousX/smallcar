@@ -1,4 +1,5 @@
 # Keil uVision 输出
+.windsurf/
 example/
 smallcar_keil/Objects/
 smallcar_keil/Listings/

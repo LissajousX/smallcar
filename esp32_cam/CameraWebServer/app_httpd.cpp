@@ -33,6 +33,7 @@
 #if CONFIG_LED_ILLUMINATOR_ENABLED
 
 #define LED_LEDC_GPIO             4  // configure LED pin (ESP32-CAM flash LED 默认脚一般为 GPIO4)
+#define LED_LEDC_CHANNEL          7
 #define CONFIG_LED_MAX_INTENSITY 255
 
 int led_duty = 0;
@@ -99,7 +100,7 @@ void enable_led(bool en) {  // Turn LED On or Off
   if (en && isStreaming && (led_duty > CONFIG_LED_MAX_INTENSITY)) {
     duty = CONFIG_LED_MAX_INTENSITY;
   }
-  ledcWrite(LED_LEDC_GPIO, duty);
+  ledcWrite(LED_LEDC_CHANNEL, duty);
   //ledc_set_duty(CONFIG_LED_LEDC_SPEED_MODE, CONFIG_LED_LEDC_CHANNEL, duty);
   //ledc_update_duty(CONFIG_LED_LEDC_SPEED_MODE, CONFIG_LED_LEDC_CHANNEL);
   log_i("Set LED intensity to %d", duty);
@@ -1011,7 +1012,8 @@ void startCameraServer() {
 void setupLedFlash(int pin) {
 #if CONFIG_LED_ILLUMINATOR_ENABLED
   // 使用较高的 PWM 频率，避免 5kHz 附近的人耳可听啸叫
-  ledcAttach(pin, 20000, 8);
+  ledcSetup(LED_LEDC_CHANNEL, 20000, 8);
+  ledcAttachPin(pin, LED_LEDC_CHANNEL);
 #else
   log_i("LED flash is disabled -> CONFIG_LED_ILLUMINATOR_ENABLED = 0");
 #endif
