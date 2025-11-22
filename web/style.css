@@ -29,8 +29,17 @@ body {
 }
 
 .top-bar h1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 18px;
   margin: 0 8px 0 0;
+}
+
+.logo-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 
 .ws-config {
@@ -317,9 +326,23 @@ button.danger:hover {
   text-align: center;
 }
 
+.panel-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+}
+
 .panel-status h2 {
   font-size: 14px;
-  margin: 0 0 4px;
+  margin: 0;
+}
+
+.status-fw-build {
+  font-size: 12px;
+  color: #9ca3af;
+  white-space: nowrap;
 }
 
 .gimbal-status-line {

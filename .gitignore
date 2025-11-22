@@ -5,6 +5,7 @@ smallcar_keil/Listings/
 smallcar_keil/DebugConfig/
 smallcar_keil/RTE/_Target_1/
 smallcar_keil/EventRecorderStub.scvd
+esp32_cam/CameraWebServer/build
 *.axf
 *.lnp
 *.dep

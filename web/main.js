@@ -82,6 +82,9 @@
   const camLightInput = document.getElementById("cam-light");
   const camLightValue = document.getElementById("cam-light-value");
   const camAdvancedApplyBtn = document.getElementById("cam-advanced-apply");
+  const otaFileInput = document.getElementById("ota-file");
+  const otaUploadBtn = document.getElementById("ota-upload-btn");
+  const otaStatus = document.getElementById("ota-status");
 
   const driveJoystick = document.getElementById("drive-joystick");
   const driveStick = document.getElementById("drive-stick");
@@ -107,6 +110,7 @@
   const statusSteer = document.getElementById("status-steer");
   const statusYaw = document.getElementById("status-yaw");
   const statusPitch = document.getElementById("status-pitch");
+  const statusFwBuild = document.getElementById("status-fw-build");
 
   const ovStatusThrottle = document.getElementById("ov-status-throttle");
   const ovStatusSteer = document.getElementById("ov-status-steer");
@@ -162,6 +166,16 @@
       "ontouchstart" in window ||
       (navigator && (navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0))
     );
+  }
+
+  function resetOtaControls() {
+    if (otaFileInput) {
+      otaFileInput.value = "";
+    }
+    if (otaStatus) {
+      otaStatus.textContent = "选择编译生成的 .bin 固件文件，通过 WiFi 推送到小车上的 ESP32-CAM。";
+      otaStatus.style.color = "";
+    }
   }
 
   function clamp(value, min, max) {
@@ -227,7 +241,7 @@
       return;
     }
     try {
-      const resp = await fetch(`${base}/status`, { mode: "cors" });
+      const resp = await fetch(`${base}/status?t=${Date.now()}`, { mode: "cors" });
       if (!resp.ok) {
         return;
       }
@@ -261,6 +275,19 @@
       }
       if (camAeLevelInput && typeof data.ae_level === "number") {
         camAeLevelInput.value = String(data.ae_level);
+      }
+      if (statusFwBuild) {
+        const hasVersion = typeof data.fw_version === "string" && data.fw_version.length > 0;
+        const hasBuild = typeof data.fw_build === "string" && data.fw_build.length > 0;
+        if (hasVersion && hasBuild) {
+          statusFwBuild.textContent = data.fw_version + " (" + data.fw_build + ")";
+        } else if (hasVersion) {
+          statusFwBuild.textContent = data.fw_version;
+        } else if (hasBuild) {
+          statusFwBuild.textContent = data.fw_build;
+        } else {
+          statusFwBuild.textContent = "--";
+        }
       }
       if (typeof data.led_intensity === "number" && data.led_intensity > 0) {
         // 只用 /status 判断当前灯是否处于亮的状态，亮度值始终以前端默认 125 为起点
@@ -1279,6 +1306,7 @@
       camAdvancedModal.addEventListener("click", (e) => {
         if (e.target === camAdvancedModal) {
           camAdvancedModal.classList.remove("visible");
+          resetOtaControls();
         }
       });
     }
@@ -1286,6 +1314,57 @@
     if (camAdvancedModal && camAdvancedClose) {
       camAdvancedClose.addEventListener("click", () => {
         camAdvancedModal.classList.remove("visible");
+        resetOtaControls();
+      });
+    }
+
+    // OTA 升级：从浏览器选择 .bin 并 POST 到 ESP32-CAM /ota
+    if (otaFileInput && otaUploadBtn && otaStatus && videoUrlInput) {
+      otaUploadBtn.addEventListener("click", async () => {
+        const file = otaFileInput.files && otaFileInput.files[0];
+        if (!file) {
+          otaStatus.textContent = "请先选择编译生成的 .bin 固件文件。";
+          otaStatus.style.color = "#f87171";
+          return;
+        }
+
+        const url = videoUrlInput.value.trim();
+        if (!url) {
+          otaStatus.textContent = "请先在顶部填写 ESP32-CAM 的视频流地址（用于推导 IP）。";
+          otaStatus.style.color = "#f87171";
+          return;
+        }
+
+        let otaUrl = null;
+        try {
+          const u = new URL(url, window.location.href);
+          if (u.protocol !== "http:" && u.protocol !== "https:") {
+            throw new Error("invalid protocol");
+          }
+          otaUrl = `${u.protocol}//${u.hostname}/ota`;
+        } catch (e) {
+          otaStatus.textContent = "视频流地址格式不正确，例如 http://192.168.31.140:81/stream。";
+          otaStatus.style.color = "#f87171";
+          return;
+        }
+
+        otaStatus.textContent = "正在上传固件并执行升级，请勿断电/刷新页面...";
+        otaStatus.style.color = "#facc15";
+
+        try {
+          // 使用 no-cors，避免从路由器页面跨域访问 ESP32-CAM 时触发 CORS 预检导致 TypeError
+          await fetch(otaUrl, {
+            method: "POST",
+            body: file,
+            mode: "no-cors",
+          });
+          // no-cors 模式下无法读取响应状态/内容，只要不抛异常就认为请求已成功发出
+          otaStatus.textContent = "升级请求已发送，设备将自动重启，请稍等片刻后重新连接。";
+          otaStatus.style.color = "#34d399";
+        } catch (e) {
+          otaStatus.textContent = "升级请求发送失败，请检查网络连接。";
+          otaStatus.style.color = "#f87171";
+        }
       });
     }
 

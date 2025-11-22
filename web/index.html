@@ -5,10 +5,14 @@
   <title>SmallCar 远程控制面板V1.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 </head>
 <body>
   <header class="top-bar">
-    <h1>SmallCar 远程控制V1.0</h1>
+    <h1>
+      <img src="favicon.svg" alt="SmallCar" class="logo-icon" />
+      <span>SmallCar 远程控制V1.0</span>
+    </h1>
     <div class="top-right">
       <div class="ws-config">
         <label class="ws-label">
@@ -114,7 +118,13 @@
     </section>
 
     <section class="panel panel-status">
-      <h2>当前状态</h2>
+      <div class="panel-status-header">
+        <h2>当前状态</h2>
+        <span class="status-fw-build">
+          ESP32-CAM 固件：
+          <span id="status-fw-build">--</span>
+        </span>
+      </div>
       <div class="status-grid">
         <div class="status-item">
           <div class="status-label">油门 / 转向 / 云台角度</div>
@@ -303,6 +313,12 @@
         <div class="field field-slider">
           <label for="cam-light">补光灯亮度：<span id="cam-light-value">0</span></label>
           <input id="cam-light" type="range" min="0" max="255" value="125" />
+        </div>
+        <div class="field">
+          <label for="ota-file">ESP32-CAM 固件升级：</label>
+          <input id="ota-file" type="file" accept=".bin" />
+          <button id="ota-upload-btn" class="small-btn">开始升级</button>
+          <div class="hint" id="ota-status">选择编译生成的 .bin 固件文件，通过 WiFi 推送到小车上的 ESP32-CAM。</div>
         </div>
         <button id="cam-advanced-apply" class="small-btn">
           <span class="btn-icon apply-icon"></span>

@@ -17,6 +17,8 @@
 #include "img_converters.h"
 #include "fb_gfx.h"
 #include "esp32-hal-ledc.h"
+#include "esp_ota_ops.h"
+#include "esp_system.h"
 #include "sdkconfig.h"
 #include "camera_index.h"
 
@@ -141,6 +143,87 @@ static esp_err_t bmp_handler(httpd_req_t *req) {
 #endif
   log_i("BMP: %llums, %uB", (uint64_t)((fr_end - fr_start) / 1000), buf_len);
   return res;
+}
+
+// OTA 升级处理：通过 HTTP POST 接收固件 .bin 并写入 OTA 分区
+static esp_err_t ota_post_handler(httpd_req_t *req) {
+  esp_err_t err;
+
+  const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
+  if (!update_partition) {
+    log_e("OTA: no valid update partition");
+    return httpd_resp_send_500(req);
+  }
+
+  log_i("OTA: writing to partition subtype %d at offset 0x%lx", update_partition->subtype, (unsigned long)update_partition->address);
+
+  esp_ota_handle_t ota_handle = 0;
+  err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
+  if (err != ESP_OK) {
+    log_e("OTA: esp_ota_begin failed: %d", err);
+    return httpd_resp_send_500(req);
+  }
+
+  const size_t buf_size = 1024;
+  uint8_t *buf = (uint8_t *)malloc(buf_size);
+  if (!buf) {
+    log_e("OTA: malloc failed");
+    esp_ota_end(ota_handle);
+    return httpd_resp_send_500(req);
+  }
+
+  int remaining = req->content_len;
+  if (remaining <= 0) {
+    log_e("OTA: invalid content length %d", remaining);
+    free(buf);
+    esp_ota_end(ota_handle);
+    return httpd_resp_send_500(req);
+  }
+
+  while (remaining > 0) {
+    int to_read = remaining > (int)buf_size ? (int)buf_size : remaining;
+    int recv_len = httpd_req_recv(req, (char *)buf, to_read);
+    if (recv_len <= 0) {
+      log_e("OTA: recv error %d", recv_len);
+      free(buf);
+      esp_ota_end(ota_handle);
+      return httpd_resp_send_500(req);
+    }
+
+    err = esp_ota_write(ota_handle, buf, recv_len);
+    if (err != ESP_OK) {
+      log_e("OTA: esp_ota_write failed: %d", err);
+      free(buf);
+      esp_ota_end(ota_handle);
+      return httpd_resp_send_500(req);
+    }
+
+    remaining -= recv_len;
+  }
+
+  free(buf);
+
+  err = esp_ota_end(ota_handle);
+  if (err != ESP_OK) {
+    log_e("OTA: esp_ota_end failed: %d", err);
+    return httpd_resp_send_500(req);
+  }
+
+  err = esp_ota_set_boot_partition(update_partition);
+  if (err != ESP_OK) {
+    log_e("OTA: set_boot_partition failed: %d", err);
+    return httpd_resp_send_500(req);
+  }
+
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_type(req, "text/plain");
+  httpd_resp_sendstr(req, "OK");
+
+  log_i("OTA: update successful, restarting");
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
+  esp_restart();
+
+  return ESP_OK;
 }
 
 static size_t jpg_encode_stream(void *arg, size_t index, const void *data, size_t len) {
@@ -475,8 +558,17 @@ static int print_reg(char *p, sensor_t *s, uint16_t reg, uint32_t mask) {
   return sprintf(p, "\"0x%x\":%u,", reg, s->get_reg(s, reg, mask));
 }
 
+// 固件构建信息，用于前端确认 OTA 升级是否生效
+#ifndef FW_VERSION
+#define FW_VERSION "DEV"
+#endif
+#define FW_BUILD_STR __DATE__ " " __TIME__
+
 static esp_err_t status_handler(httpd_req_t *req) {
-  static char json_response[1024];
+  // 原始示例里是 1024 字节，但我们额外增加了多组寄存器和 OTA 诊断字段，
+  // 1KB 容易不够用，导致缓冲区溢出、破坏 led_duty / s_ota_last_* 等全局变量。
+  // 这里把缓冲区加大到 4KB，简单可靠地避免溢出问题。
+  static char json_response[4096];
 
   sensor_t *s = esp_camera_sensor_get();
   char *p = json_response;
@@ -542,6 +634,9 @@ static esp_err_t status_handler(httpd_req_t *req) {
 #else
   p += sprintf(p, ",\"led_intensity\":%d", -1);
 #endif
+  p += sprintf(p, ",\"fw_version\":\"%s\"", FW_VERSION);
+  // 在状态 JSON 中附带固件构建时间，便于前端确认 OTA 升级后的版本
+  p += sprintf(p, ",\"fw_build\":\"%s\"", FW_BUILD_STR);
   *p++ = '}';
   *p++ = 0;
   httpd_resp_set_type(req, "application/json");
@@ -744,6 +839,19 @@ void startCameraServer() {
 #endif
   };
 
+  httpd_uri_t ota_uri = {
+    .uri = "/ota",
+    .method = HTTP_POST,
+    .handler = ota_post_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
   httpd_uri_t status_uri = {
     .uri = "/status",
     .method = HTTP_GET,
@@ -889,6 +997,7 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &greg_uri);
     httpd_register_uri_handler(camera_httpd, &pll_uri);
     httpd_register_uri_handler(camera_httpd, &win_uri);
+    httpd_register_uri_handler(camera_httpd, &ota_uri);
   }
 
   config.server_port += 1;
