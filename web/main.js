@@ -320,8 +320,14 @@
       urls.push(`${base}/control?var=ae_level&val=${encodeURIComponent(camAeLevelInput.value)}`);
     }
     if (camLightInput) {
+      // 高级设置中的补光灯亮度只作为“下次开灯的默认亮度”，不在此处直接控制 LED
       lightLevel = parseInt(camLightInput.value, 10) || 0;
-      urls.push(`${base}/control?var=led_intensity&val=${encodeURIComponent(lightLevel)}`);
+      if (videoLightLevelInput) {
+        videoLightLevelInput.value = String(lightLevel);
+      }
+      if (camLightValue) {
+        camLightValue.textContent = String(lightLevel);
+      }
     }
 
     urls.forEach((u) => {
@@ -431,6 +437,25 @@
       0;
     const targetTop = Math.max(0, totalHeight - window.innerHeight);
     window.scrollTo({ top: targetTop, behavior: "smooth" });
+  }
+
+  // 根据视频容器高度动态调整右侧补光灯亮度条的长度
+  function updateLightSliderSize() {
+    if (!videoLightLevelInput) {
+      return;
+    }
+    const box = videoView && videoView.parentElement;
+    if (!box) {
+      return;
+    }
+    const rect = box.getBoundingClientRect();
+    const h = rect.height || 0;
+    if (!h) {
+      return;
+    }
+    // 按视频高度的约 45% 计算亮度条长度，并限制在 80~160 像素之间
+    const length = clamp(Math.round(h * 0.45), 80, 160);
+    videoLightLevelInput.style.width = `${length}px`;
   }
 
   function setDrive(throttle, steer) {
@@ -1313,11 +1338,20 @@
     }
   }
 
-  // 页面加载与横竖屏切换时，自动把横屏小高度场景下的视频滚动到合适位置
-  window.addEventListener("load", scrollVideoIntoViewIfLandscape);
-  window.addEventListener("orientationchange", scrollVideoIntoViewIfLandscape);
-  window.addEventListener("resize", scrollVideoIntoViewIfLandscape);
-   window.addEventListener("load", loadCameraStatus);
+  // 页面加载与横竖屏切换时，自动把横屏小高度场景下的视频滚动到合适位置，并调整补光灯亮度条长度
+  window.addEventListener("load", () => {
+    scrollVideoIntoViewIfLandscape();
+    updateLightSliderSize();
+    loadCameraStatus();
+  });
+  window.addEventListener("orientationchange", () => {
+    scrollVideoIntoViewIfLandscape();
+    updateLightSliderSize();
+  });
+  window.addEventListener("resize", () => {
+    scrollVideoIntoViewIfLandscape();
+    updateLightSliderSize();
+  });
 
   if (camAdvancedApplyBtn) {
     camAdvancedApplyBtn.addEventListener("click", () => {
