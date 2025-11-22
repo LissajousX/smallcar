@@ -50,6 +50,19 @@
           <button id="video-light-btn" class="video-tool-btn" aria-label="灯光">
             <span class="video-tool-icon light-icon"></span>
           </button>
+          <button id="video-advanced-btn" class="video-tool-btn" aria-label="高级设置">
+            <span class="video-tool-icon settings-icon"></span>
+          </button>
+        </div>
+        <div id="video-light-slider" class="video-light-slider">
+          <span class="video-light-label">亮度</span>
+          <input id="video-light-level" type="range" min="0" max="255" value="125" />
+        </div>
+        <div id="video-play-overlay" class="video-play-overlay">
+          <button id="video-play-btn" class="video-play-btn" aria-label="加载视频"></button>
+        </div>
+        <div id="video-play-controls" class="video-play-controls">
+          <button id="video-play-toggle" class="video-play-toggle-btn" aria-label="播放/暂停视频"></button>
         </div>
         <div class="video-overlay">
           <div class="overlay-panel overlay-drive">
@@ -214,7 +227,6 @@
         </section>
       </div>
     </section>
-
   </main>
 
   <div id="snapshot-modal" class="snapshot-modal">
@@ -222,6 +234,82 @@
       <button id="snapshot-modal-close" class="snapshot-modal-close" aria-label="关闭预览">×</button>
       <img id="snapshot-modal-img" alt="照片预览" />
       <div class="snapshot-modal-hint">长按（手机）或右键（电脑）图片可以保存到本地</div>
+    </div>
+  </div>
+
+  <div id="cam-advanced-modal" class="snapshot-modal">
+    <div class="snapshot-modal-content cam-advanced-modal-content">
+      <button id="cam-advanced-close" class="snapshot-modal-close" aria-label="关闭高级设置">×</button>
+      <section class="panel panel-advanced">
+        <h2>摄像头高级设置</h2>
+        <div class="field">
+          <label for="cam-preset">画质预设：</label>
+          <select id="cam-preset" class="top-pill-input">
+            <option value="low">流畅（低延迟）</option>
+            <option value="normal" selected>平衡</option>
+            <option value="high">清晰（高画质）</option>
+          </select>
+          <div class="hint" id="cam-preset-desc">平衡：640×480，中等码率，适合大多数场景。</div>
+        </div>
+        <div class="field field-slider">
+          <label for="cam-brightness">亮度：<span id="cam-brightness-value">0</span></label>
+          <input id="cam-brightness" type="range" min="-2" max="2" value="0" />
+        </div>
+        <div class="field field-slider">
+          <label for="cam-contrast">对比度：<span id="cam-contrast-value">0</span></label>
+          <input id="cam-contrast" type="range" min="-2" max="2" value="0" />
+        </div>
+        <div class="field field-slider">
+          <label for="cam-saturation">饱和度：<span id="cam-saturation-value">0</span></label>
+          <input id="cam-saturation" type="range" min="-2" max="2" value="0" />
+        </div>
+        <div class="field field-toggle-group">
+          <label class="toggle">
+            <input type="checkbox" id="cam-hmirror" />
+            <span>水平镜像（镜头装反时使用）</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="cam-vflip" />
+            <span>垂直翻转</span>
+          </label>
+        </div>
+        <div class="field field-toggle-group">
+          <label class="toggle">
+            <input type="checkbox" id="cam-aec" />
+            <span>自动曝光 AEC</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="cam-agc" />
+            <span>自动增益 AGC</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" id="cam-awb" />
+            <span>自动白平衡 AWB</span>
+          </label>
+        </div>
+        <div class="field">
+          <label for="cam-wb-mode">白平衡模式：</label>
+          <select id="cam-wb-mode" class="top-pill-input">
+            <option value="0">自动</option>
+            <option value="1">晴天</option>
+            <option value="2">阴天</option>
+            <option value="3">办公室</option>
+            <option value="4">家居</option>
+          </select>
+        </div>
+        <div class="field field-slider">
+          <label for="cam-ae-level">曝光补偿：<span id="cam-ae-level-value">0</span></label>
+          <input id="cam-ae-level" type="range" min="-2" max="2" value="0" />
+        </div>
+        <div class="field field-slider">
+          <label for="cam-light">补光灯亮度：<span id="cam-light-value">0</span></label>
+          <input id="cam-light" type="range" min="0" max="255" value="125" />
+        </div>
+        <button id="cam-advanced-apply" class="small-btn">
+          <span class="btn-icon apply-icon"></span>
+          <span class="btn-text">应用到摄像头</span>
+        </button>
+      </section>
     </div>
   </div>
 

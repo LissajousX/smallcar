@@ -62,6 +62,27 @@
   const snapshotBtn = document.getElementById("video-snapshot-btn");
   const lightBtn = document.getElementById("video-light-btn");
 
+  // 摄像头高级设置
+  const camPresetSelect = document.getElementById("cam-preset");
+  const camBrightnessInput = document.getElementById("cam-brightness");
+  const camContrastInput = document.getElementById("cam-contrast");
+  const camSaturationInput = document.getElementById("cam-saturation");
+  const camBrightnessValue = document.getElementById("cam-brightness-value");
+  const camContrastValue = document.getElementById("cam-contrast-value");
+  const camSaturationValue = document.getElementById("cam-saturation-value");
+  const camPresetDesc = document.getElementById("cam-preset-desc");
+  const camHmirrorInput = document.getElementById("cam-hmirror");
+  const camVflipInput = document.getElementById("cam-vflip");
+  const camAwbInput = document.getElementById("cam-awb");
+  const camAgcInput = document.getElementById("cam-agc");
+  const camAecInput = document.getElementById("cam-aec");
+  const camWbModeSelect = document.getElementById("cam-wb-mode");
+  const camAeLevelInput = document.getElementById("cam-ae-level");
+  const camAeLevelValue = document.getElementById("cam-ae-level-value");
+  const camLightInput = document.getElementById("cam-light");
+  const camLightValue = document.getElementById("cam-light-value");
+  const camAdvancedApplyBtn = document.getElementById("cam-advanced-apply");
+
   const driveJoystick = document.getElementById("drive-joystick");
   const driveStick = document.getElementById("drive-stick");
   const gimbalJoystick = document.getElementById("gimbal-joystick");
@@ -72,6 +93,15 @@
   const snapshotModal = document.getElementById("snapshot-modal");
   const snapshotModalImg = document.getElementById("snapshot-modal-img");
   const snapshotModalClose = document.getElementById("snapshot-modal-close");
+  const camAdvancedModal = document.getElementById("cam-advanced-modal");
+  const camAdvancedClose = document.getElementById("cam-advanced-close");
+  const camAdvancedBtn = document.getElementById("video-advanced-btn");
+  const videoLightSlider = document.getElementById("video-light-slider");
+  const videoLightLevelInput = document.getElementById("video-light-level");
+  const videoPlayOverlay = document.getElementById("video-play-overlay");
+  const videoPlayBtn = document.getElementById("video-play-btn");
+  const videoPlayControls = document.getElementById("video-play-controls");
+  const videoPlayToggle = document.getElementById("video-play-toggle");
 
   const statusThrottle = document.getElementById("status-throttle");
   const statusSteer = document.getElementById("status-steer");
@@ -87,6 +117,7 @@
   let sendTimer = null;
   let videoActive = false; // 当前是否在播放流
   let lightOn = false; // 补光灯当前状态
+  let lightLevel = 125; // 补光灯亮度（0-255），默认 125
 
   const state = {
     throttle: 0,
@@ -137,6 +168,169 @@
     if (value < min) return min;
     if (value > max) return max;
     return value;
+  }
+
+  function getPresetDesc(value) {
+    if (value === "low") {
+      return "流畅：320×240，压缩率高，延迟低，适合弱网络/远距离。";
+    }
+    if (value === "high") {
+      return "清晰：800×600 左右，压缩率低，画质最好，对带宽/性能要求较高。";
+    }
+    return "平衡：640×480，中等码率，适合大多数场景。";
+  }
+
+  function buildCameraBaseFromVideoUrl() {
+    if (!videoUrlInput) return null;
+    const url = videoUrlInput.value.trim();
+    if (!url) return null;
+    try {
+      const u = new URL(url, window.location.href);
+      if (u.protocol !== "http:" && u.protocol !== "https:") {
+        return null;
+      }
+      // ESP32-CAM 的 /capture、/control、/status 等接口一般在 HTTP 主端口
+      return `${u.protocol}//${u.hostname}`;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function updateCameraAdvancedLabels() {
+    if (camBrightnessInput && camBrightnessValue) {
+      camBrightnessValue.textContent = String(camBrightnessInput.value);
+    }
+    if (camContrastInput && camContrastValue) {
+      camContrastValue.textContent = String(camContrastInput.value);
+    }
+    if (camSaturationInput && camSaturationValue) {
+      camSaturationValue.textContent = String(camSaturationInput.value);
+    }
+    if (camAeLevelInput && camAeLevelValue) {
+      camAeLevelValue.textContent = String(camAeLevelInput.value);
+    }
+    if (camLightInput && camLightValue) {
+      camLightValue.textContent = String(camLightInput.value);
+    }
+  }
+
+  function updateCamPresetDesc() {
+    if (camPresetSelect && camPresetDesc) {
+      const value = camPresetSelect.value || "normal";
+      camPresetDesc.textContent = getPresetDesc(value);
+    }
+  }
+
+  async function loadCameraStatus() {
+    const base = buildCameraBaseFromVideoUrl();
+    if (!base || !window.fetch) {
+      return;
+    }
+    try {
+      const resp = await fetch(`${base}/status`, { mode: "cors" });
+      if (!resp.ok) {
+        return;
+      }
+      const data = await resp.json();
+      if (camBrightnessInput && typeof data.brightness === "number") {
+        camBrightnessInput.value = String(data.brightness);
+      }
+      if (camContrastInput && typeof data.contrast === "number") {
+        camContrastInput.value = String(data.contrast);
+      }
+      if (camSaturationInput && typeof data.saturation === "number") {
+        camSaturationInput.value = String(data.saturation);
+      }
+      if (camHmirrorInput && typeof data.hmirror === "number") {
+        camHmirrorInput.checked = !!data.hmirror;
+      }
+      if (camVflipInput && typeof data.vflip === "number") {
+        camVflipInput.checked = !!data.vflip;
+      }
+      if (camAwbInput && typeof data.awb === "number") {
+        camAwbInput.checked = !!data.awb;
+      }
+      if (camAgcInput && typeof data.agc === "number") {
+        camAgcInput.checked = !!data.agc;
+      }
+      if (camAecInput && typeof data.aec === "number") {
+        camAecInput.checked = !!data.aec;
+      }
+      if (camWbModeSelect && typeof data.wb_mode === "number") {
+        camWbModeSelect.value = String(data.wb_mode);
+      }
+      if (camAeLevelInput && typeof data.ae_level === "number") {
+        camAeLevelInput.value = String(data.ae_level);
+      }
+      if (typeof data.led_intensity === "number" && data.led_intensity > 0) {
+        // 只用 /status 判断当前灯是否处于亮的状态，亮度值始终以前端默认 125 为起点
+        lightOn = true;
+        if (lightBtn) {
+          lightBtn.classList.add("active");
+        }
+        if (videoLightSlider) {
+          videoLightSlider.classList.add("visible");
+        }
+      }
+      updateCameraAdvancedLabels();
+    } catch (e) {
+      // 忽略状态获取失败，不影响其他功能
+    }
+  }
+
+  function applyCameraAdvancedSettings() {
+    const base = buildCameraBaseFromVideoUrl();
+    if (!base) {
+      alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
+      return;
+    }
+
+    const urls = [];
+    if (camPresetSelect && camPresetSelect.value) {
+      urls.push(`${base}/control?var=preset&val=${encodeURIComponent(camPresetSelect.value)}`);
+    }
+    if (camBrightnessInput) {
+      urls.push(`${base}/control?var=brightness&val=${encodeURIComponent(camBrightnessInput.value)}`);
+    }
+    if (camContrastInput) {
+      urls.push(`${base}/control?var=contrast&val=${encodeURIComponent(camContrastInput.value)}`);
+    }
+    if (camSaturationInput) {
+      urls.push(`${base}/control?var=saturation&val=${encodeURIComponent(camSaturationInput.value)}`);
+    }
+    if (camHmirrorInput) {
+      urls.push(`${base}/control?var=hmirror&val=${camHmirrorInput.checked ? 1 : 0}`);
+    }
+    if (camVflipInput) {
+      urls.push(`${base}/control?var=vflip&val=${camVflipInput.checked ? 1 : 0}`);
+    }
+    if (camAwbInput) {
+      urls.push(`${base}/control?var=awb&val=${camAwbInput.checked ? 1 : 0}`);
+    }
+    if (camAgcInput) {
+      urls.push(`${base}/control?var=agc&val=${camAgcInput.checked ? 1 : 0}`);
+    }
+    if (camAecInput) {
+      urls.push(`${base}/control?var=aec&val=${camAecInput.checked ? 1 : 0}`);
+    }
+    if (camWbModeSelect && camWbModeSelect.value !== "") {
+      urls.push(`${base}/control?var=wb_mode&val=${encodeURIComponent(camWbModeSelect.value)}`);
+    }
+    if (camAeLevelInput) {
+      urls.push(`${base}/control?var=ae_level&val=${encodeURIComponent(camAeLevelInput.value)}`);
+    }
+    if (camLightInput) {
+      lightLevel = parseInt(camLightInput.value, 10) || 0;
+      urls.push(`${base}/control?var=led_intensity&val=${encodeURIComponent(lightLevel)}`);
+    }
+
+    urls.forEach((u) => {
+      try {
+        fetch(u, { mode: "no-cors" }).catch(() => {});
+      } catch (e) {
+        // 忽略浏览器环境不支持 fetch 的情况
+      }
+    });
   }
 
   function setStatus(text, cls) {
@@ -528,6 +722,68 @@
     updateLabels();
   });
 
+  if (camBrightnessInput) {
+    camBrightnessInput.addEventListener("input", () => {
+      updateCameraAdvancedLabels();
+    });
+  }
+
+  if (camContrastInput) {
+    camContrastInput.addEventListener("input", () => {
+      updateCameraAdvancedLabels();
+    });
+  }
+
+  if (camSaturationInput) {
+    camSaturationInput.addEventListener("input", () => {
+      updateCameraAdvancedLabels();
+    });
+  }
+
+  if (camPresetSelect) {
+    camPresetSelect.addEventListener("change", () => {
+      updateCamPresetDesc();
+    });
+  }
+
+  if (camAeLevelInput) {
+    camAeLevelInput.addEventListener("input", () => {
+      updateCameraAdvancedLabels();
+    });
+  }
+
+  if (camLightInput) {
+    camLightInput.addEventListener("input", () => {
+      lightLevel = parseInt(camLightInput.value, 10) || 0;
+      if (videoLightLevelInput) {
+        videoLightLevelInput.value = String(lightLevel);
+      }
+      updateCameraAdvancedLabels();
+    });
+  }
+
+  if (videoLightLevelInput) {
+    videoLightLevelInput.addEventListener("input", () => {
+      lightLevel = parseInt(videoLightLevelInput.value, 10) || 0;
+      if (camLightInput) {
+        camLightInput.value = String(lightLevel);
+      }
+      if (camLightValue) {
+        camLightValue.textContent = String(lightLevel);
+      }
+      const base = buildCameraBaseFromVideoUrl();
+      if (!base) {
+        return;
+      }
+      const url = `${base}/control?var=led_intensity&val=${encodeURIComponent(lightLevel)}`;
+      try {
+        fetch(url, { mode: "no-cors" }).catch(() => {});
+      } catch (e) {
+        // 忽略浏览器环境不支持 fetch 的情况
+      }
+    });
+  }
+
   btnStop.addEventListener("click", () => {
     state.throttle = 0;
     state.steer = 0;
@@ -826,48 +1082,110 @@
 
   // 初始 UI 状态
   updateLabels();
+  updateCameraAdvancedLabels();
+  updateCamPresetDesc();
 
   // 视频预览加载 / 停止 按钮（单键切换）+ 拍照 + 补光灯
   if (videoLoadBtn && videoUrlInput && videoView) {
-    // 如果加载失败，回退到占位图
-    videoView.addEventListener("error", () => {
-      if (!videoView.src.includes(VIDEO_PLACEHOLDER)) {
-        videoView.src = VIDEO_PLACEHOLDER;
-      }
+    const stopVideo = () => {
+      videoView.src = VIDEO_PLACEHOLDER;
       videoActive = false;
       videoLoadBtn.textContent = "加载";
-    });
+      if (videoPlayOverlay) {
+        videoPlayOverlay.classList.remove("hidden");
+      }
+      if (videoPlayControls) {
+        videoPlayControls.classList.remove("visible");
+      }
+      if (videoPlayToggle) {
+        videoPlayToggle.classList.remove("playing");
+      }
+    };
 
     const loadVideo = () => {
       const url = videoUrlInput.value.trim();
       if (!url) {
-        videoView.src = VIDEO_PLACEHOLDER;
-        videoActive = false;
-        videoLoadBtn.textContent = "加载";
+        stopVideo();
         return;
       }
       videoView.src = url;
       videoActive = true;
       videoLoadBtn.textContent = "停止";
+      if (videoPlayOverlay) {
+        videoPlayOverlay.classList.add("hidden");
+      }
+      if (videoPlayControls) {
+        videoPlayControls.classList.add("visible");
+      }
+      if (videoPlayToggle) {
+        videoPlayToggle.classList.add("playing");
+      }
     };
+
+    const pauseVideo = () => {
+      const url = videoUrlInput.value.trim();
+      if (!url) {
+        stopVideo();
+        return;
+      }
+
+      let captureUrl = null;
+      try {
+        const u = new URL(url, window.location.href);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          throw new Error("invalid protocol");
+        }
+        captureUrl = `${u.protocol}//${u.hostname}/capture?t=${Date.now()}`;
+      } catch (e) {
+        stopVideo();
+        return;
+      }
+
+      videoView.src = captureUrl;
+      videoActive = false;
+      videoLoadBtn.textContent = "加载";
+      if (videoPlayOverlay) {
+        videoPlayOverlay.classList.add("hidden");
+      }
+      if (videoPlayControls) {
+        videoPlayControls.classList.add("visible");
+      }
+      if (videoPlayToggle) {
+        videoPlayToggle.classList.remove("playing");
+      }
+    };
+
+    // 如果加载失败，回退到占位图
+    videoView.addEventListener("error", () => {
+      stopVideo();
+    });
 
     videoLoadBtn.addEventListener("click", () => {
       // 当前是流就停止，当前是占位图就加载
       if (videoActive && !videoView.src.includes(VIDEO_PLACEHOLDER)) {
-        videoView.src = VIDEO_PLACEHOLDER;
-        videoActive = false;
-        videoLoadBtn.textContent = "加载";
+        stopVideo();
       } else {
         loadVideo();
       }
     });
 
-    // 视频未加载（占位图）时，点击视频区域等效于点击“加载”按钮
-    videoView.addEventListener("click", () => {
-      if (!videoView.src || videoView.src.includes(VIDEO_PLACEHOLDER)) {
-        loadVideo();
-      }
-    });
+    if (videoPlayBtn) {
+      videoPlayBtn.addEventListener("click", () => {
+        if (!videoActive) {
+          loadVideo();
+        }
+      });
+    }
+
+    if (videoPlayToggle) {
+      videoPlayToggle.addEventListener("click", () => {
+        if (videoActive) {
+          pauseVideo();
+        } else {
+          loadVideo();
+        }
+      });
+    }
 
     // 拍照按钮：根据视频流地址推导 ESP32-CAM 的 /capture 地址
     if (snapshotBtn) {
@@ -927,6 +1245,25 @@
       });
     }
 
+    if (camAdvancedModal && camAdvancedBtn) {
+      camAdvancedBtn.addEventListener("click", () => {
+        loadCameraStatus();
+        camAdvancedModal.classList.add("visible");
+      });
+
+      camAdvancedModal.addEventListener("click", (e) => {
+        if (e.target === camAdvancedModal) {
+          camAdvancedModal.classList.remove("visible");
+        }
+      });
+    }
+
+    if (camAdvancedModal && camAdvancedClose) {
+      camAdvancedClose.addEventListener("click", () => {
+        camAdvancedModal.classList.remove("visible");
+      });
+    }
+
     // 开灯按钮：通过 /control?var=led_intensity 切换补光灯
     if (lightBtn) {
       lightBtn.addEventListener("click", () => {
@@ -942,7 +1279,7 @@
           if (u.protocol !== "http:" && u.protocol !== "https:") {
             throw new Error("invalid protocol");
           }
-          const val = lightOn ? 0 : 255;
+          const val = lightOn ? 0 : lightLevel;
           // /control 运行在 HTTP 主端口（通常 80）
           controlUrl = `${u.protocol}//${u.hostname}/control?var=led_intensity&val=${val}`;
         } catch (e) {
@@ -960,8 +1297,17 @@
         lightOn = !lightOn;
         if (lightOn) {
           lightBtn.classList.add("active");
+          if (videoLightSlider) {
+            videoLightSlider.classList.add("visible");
+          }
+          if (videoLightLevelInput) {
+            videoLightLevelInput.value = String(lightLevel);
+          }
         } else {
           lightBtn.classList.remove("active");
+          if (videoLightSlider) {
+            videoLightSlider.classList.remove("visible");
+          }
         }
       });
     }
@@ -971,4 +1317,11 @@
   window.addEventListener("load", scrollVideoIntoViewIfLandscape);
   window.addEventListener("orientationchange", scrollVideoIntoViewIfLandscape);
   window.addEventListener("resize", scrollVideoIntoViewIfLandscape);
+   window.addEventListener("load", loadCameraStatus);
+
+  if (camAdvancedApplyBtn) {
+    camAdvancedApplyBtn.addEventListener("click", () => {
+      applyCameraAdvancedSettings();
+    });
+  }
 })();

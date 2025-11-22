@@ -344,6 +344,54 @@ static esp_err_t cmd_handler(httpd_req_t *req) {
   }
   free(buf);
 
+  // 画质预设：在解析数值之前单独处理，支持字符串取值
+  if (!strcmp(variable, "preset")) {
+    sensor_t *s = esp_camera_sensor_get();
+    if (!s) {
+      return httpd_resp_send_500(req);
+    }
+
+    int pres_res = 0;
+    if (!strcmp(value, "low")) {
+      log_i("Apply preset: low");
+      if (s->pixformat == PIXFORMAT_JPEG) {
+        pres_res |= s->set_framesize(s, FRAMESIZE_QVGA);
+      }
+      pres_res |= s->set_quality(s, 20);   // 较小分辨率 + 较高压缩，追求流畅
+      pres_res |= s->set_brightness(s, 0);
+      pres_res |= s->set_contrast(s, 0);
+      pres_res |= s->set_saturation(s, 0);
+    } else if (!strcmp(value, "normal")) {
+      log_i("Apply preset: normal");
+      if (s->pixformat == PIXFORMAT_JPEG) {
+        pres_res |= s->set_framesize(s, FRAMESIZE_VGA);
+      }
+      pres_res |= s->set_quality(s, 12);   // 画质/延迟折中
+      pres_res |= s->set_brightness(s, 0);
+      pres_res |= s->set_contrast(s, 0);
+      pres_res |= s->set_saturation(s, 0);
+    } else if (!strcmp(value, "high")) {
+      log_i("Apply preset: high");
+      if (s->pixformat == PIXFORMAT_JPEG) {
+        pres_res |= s->set_framesize(s, FRAMESIZE_SVGA);
+      }
+      pres_res |= s->set_quality(s, 10);   // 更高画质，带来一定带宽/负载增加
+      pres_res |= s->set_brightness(s, 0);
+      pres_res |= s->set_contrast(s, 0);
+      pres_res |= s->set_saturation(s, 0);
+    } else {
+      log_i("Unknown preset: %s", value);
+      pres_res = -1;
+    }
+
+    if (pres_res < 0) {
+      return httpd_resp_send_500(req);
+    }
+
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    return httpd_resp_send(req, NULL, 0);
+  }
+
   int val = atoi(value);
   log_i("%s = %d", variable, val);
   sensor_t *s = esp_camera_sensor_get();
