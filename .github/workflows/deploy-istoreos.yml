@@ -19,8 +19,18 @@ jobs:
 
       - name: Deploy static web into Nginx document root
         run: |
-          echo "Sync web/ to /usr/share/nginx/html inside Docker runner..."
-          rm -rf /usr/share/nginx/html/*
-          cp -a web/. /usr/share/nginx/html/
+          echo "Sync web/ to Nginx document roots inside Docker runner..."
+          # /usr/share/nginx/html（部分发行版默认）
+          if [ -d /usr/share/nginx/html ]; then
+            rm -rf /usr/share/nginx/html/*
+            cp -a web/. /usr/share/nginx/html/
+          fi
+
+          # /var/www/html（Ubuntu/Debian 常见默认）
+          if [ -d /var/www/html ]; then
+            rm -rf /var/www/html/*
+            cp -a web/. /var/www/html/
+          fi
+
           # 重载 nginx（如果已经在运行）
           nginx -s reload || true
