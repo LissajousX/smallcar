@@ -6,6 +6,8 @@
 #        cd /root/smallcar
 #        sh deploy_istoreos.sh
 #   3. 部署完成后，访问：http://<路由器IP>:8090/
+#   4. 如需卸载 smallcar-web 服务和静态文件：
+#        sh deploy_istoreos.sh uninstall
 
 set -e
 
@@ -13,6 +15,31 @@ WEB_SRC_DIR="$(cd "$(dirname "$0")/web" && pwd)"
 WEB_DST_DIR="/www/smallcar"
 INIT_SCRIPT="/etc/init.d/smallcar-web"
 HTTP_PORT="8090"
+
+ACTION="${1:-install}"
+
+if [ "$ACTION" = "uninstall" ] || [ "$ACTION" = "remove" ]; then
+  echo "[卸载] 停止 smallcar-web 服务并清理文件..."
+
+  if [ -x "$INIT_SCRIPT" ]; then
+    /etc/init.d/smallcar-web stop || true
+    /etc/init.d/smallcar-web disable || true
+    echo "  - 删除 init 脚本 $INIT_SCRIPT"
+    rm -f "$INIT_SCRIPT"
+  else
+    echo "提示：未找到 $INIT_SCRIPT，可能已经卸载过服务。"
+  fi
+
+  if [ -d "$WEB_DST_DIR" ]; then
+    echo "  - 删除 Web 目录 $WEB_DST_DIR"
+    rm -rf "$WEB_DST_DIR"
+  else
+    echo "提示：未找到 Web 目录 $WEB_DST_DIR。"
+  fi
+
+  echo "卸载完成。"
+  exit 0
+fi
 
 echo "[1/3] 拷贝 SmallCar Web 静态文件到 $WEB_DST_DIR ..."
 

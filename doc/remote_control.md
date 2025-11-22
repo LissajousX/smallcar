@@ -445,3 +445,124 @@ Web UI 主要由三块组成：
    - 会覆盖 `/www/smallcar` 下的静态 Web 文件为当前版本；
    - 自动重启 `smallcar-web` 服务，使修改立即生效；
    - 无需手动 stop/start 服务。
+
+#### 6.2.5 卸载 smallcar-web 服务（恢复裸机环境）
+
+当不再需要使用 `deploy_istoreos.sh` 所部署的裸机 Web 服务，或准备切换到 Docker 部署方案时，可以在路由器上执行一键卸载：
+
+```sh
+ssh root@192.168.31.1
+cd /root/smallcar
+sh deploy_istoreos.sh uninstall
+```
+
+脚本会完成以下操作：
+
+- 停止并禁用 `smallcar-web` 服务；
+- 删除 `/etc/init.d/smallcar-web` init 脚本；
+- 删除 `/www/smallcar` 目录及其中的静态文件。
+
+> 提示：若仅希望临时停用服务而保留静态文件，可以改用：
+>
+> ```sh
+> /etc/init.d/smallcar-web stop
+> /etc/init.d/smallcar-web disable
+> ```
+>
+> 这样可以随时用 `enable` + `start` 恢复。
+
+### 6.3 使用 Docker + GitHub Actions Runner 部署 Web UI（推荐）
+
+在实际使用中，更推荐在 iStoreOS 上通过一个 Docker 容器同时运行 **Nginx Web 服务器 + GitHub Actions Runner**，让 Web UI 的部署/更新完全由 CI 驱动：
+
+- 本地修改 `web/` 后 push 到 GitHub；
+- CI 在容器内自动拉取最新代码、覆盖 Nginx 静态目录并重载服务；
+- 最终通过 `http://<路由器IP>:8090/` 访问最新版本的 Web 控制面板。
+
+#### 6.3.1 前提条件
+
+- 路由器系统：iStoreOS / 兼容 OpenWrt，已安装 Docker；
+- 路由器可以访问 GitHub（用于下载 Runner 二进制和执行 CI）；
+- 已在 GitHub 仓库 `Settings → Actions → Runners` 中创建 self-hosted runner 的配置页面（用于获取 `config.sh` 命令和 token）。
+
+#### 6.3.2 在 iStoreOS 上构建并启动 smallcar-runner-web 容器
+
+在路由器上执行：
+
+```sh
+ssh root@<路由器IP>
+cd /root/smallcar
+git pull                                   # 更新到最新代码
+
+docker build -t smallcar-runner-web ./docker/runner-web
+
+docker run -d \
+  --name smallcar-runner-web \
+  --restart unless-stopped \
+  -p 8090:80 \
+  smallcar-runner-web
+```
+
+该容器内部会启动 Nginx 并监听 80 端口，通过 Docker 将 8090 暴露给局域网，其静态根目录位于容器内的 `/usr/share/nginx/html`（以及 `/var/www/html`）。
+
+> 如之前已经通过 `deploy_istoreos.sh` 部署过裸机 Web，建议先执行 `sh deploy_istoreos.sh uninstall` 清理旧的 `smallcar-web` 服务和 `/www/smallcar` 目录，再启动 Docker 容器，避免端口或路径冲突。
+
+#### 6.3.3 在容器中注册 GitHub Actions Runner
+
+1. 在 GitHub 仓库页面进入：`Settings → Actions → Runners → New self-hosted runner`，选择 `Linux / x64`，记下页面给出的 `./config.sh --url ... --token ...` 命令。
+2. 在路由器上进入容器并切换到 `runner` 用户：
+
+   ```sh
+   docker exec -it smallcar-runner-web bash
+   su - runner
+   cd /actions-runner
+   ```
+
+3. 运行配置命令（不要使用 sudo）：
+
+   ```sh
+   ./config.sh --url https://github.com/<你的GitHub用户名>/smallcar --token <GitHub生成的token>
+   ```
+
+   配置过程中：
+
+   - Runner group：回车（使用默认 `Default`）；
+   - Runner name：可填写如 `smallcar-istoreos`；
+   - Additional labels：输入 `istoreos`，用于与 CI workflow 中的 `runs-on: [self-hosted, istoreos]` 匹配；
+   - Work folder：回车（使用默认 `_work`）。
+
+4. 配置成功后退出容器并重启：
+
+   ```sh
+   exit    # 退出 runner 用户
+   exit    # 退出容器 shell
+
+   docker restart smallcar-runner-web
+   ```
+
+   容器入口脚本会以 `runner` 用户自动运行 `run.sh`，此时在 GitHub `Settings → Actions → Runners` 页面应能看到该 runner 处于 Online 状态。
+
+#### 6.3.4 通过 CI 自动部署与更新 Web UI
+
+仓库中的 `.github/workflows/deploy-istoreos.yml` 已配置了一个名为 “Deploy SmallCar Web (Docker runner)” 的 workflow，其行为大致如下：
+
+- 触发条件：
+  - push 到 `main` 分支且改动包含 `web/**`，或
+  - 在 GitHub Actions 页面手动点击 “Run workflow”；
+- Job 会在带有 `istoreos` 标签的 self-hosted runner（即上述容器）中运行：
+  - 使用 `actions/checkout@v4` 将仓库拉取到容器内的 `_work` 目录；
+  - 将仓库中的 `web/` 内容同步到容器内的 `/usr/share/nginx/html` 与 `/var/www/html`；
+  - 调用 `nginx -s reload` 重载 Nginx 配置与静态文件。
+
+从用户视角看，后续更新流程非常简单：
+
+1. 在本地修改 `web/` 目录中的 HTML/CSS/JS；
+2. 提交并推送到 GitHub：
+
+   ```bash
+   git commit -am "update web ui"
+   git push
+   ```
+
+3. 等待 GitHub Actions 中对应 workflow 运行完成；
+4. 在浏览器访问 `http://<路由器IP>:8090/`，即可看到最新版本的 Web 控制面板（建议使用 Ctrl+F5 强制刷新缓存）。

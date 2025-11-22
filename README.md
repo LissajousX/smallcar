@@ -1,17 +1,46 @@
 # STM32 四轮差速遥控小车（smallcar）
 
-基于 **STM32F103C8T6** + **TB6612FNG** 四轮差速驱动 + **PS2 无线手柄** 的遥控小车工程。
+基于 **STM32F103C8T6** + **TB6612FNG** 四轮差速驱动 + **PS2 无线手柄** 的遥控小车工程，
+并在此基础上集成了 **ESP32-CAM + Web 浏览器 + iStoreOS 路由器** 的远程控制与视频回传链路。
 
-当前工程主要使用 **Keil µVision5 + ARMCC V5** 开发，底层采用直接寄存器配置方式，实现：
+当前工程主要使用 **Keil µVision5 + ARMCC V5** 开发 STM32 固件，并配套完整的上位机链路：
 
-- 四轮差速电机控制（左右两侧并联驱动）
-- PS2 无线手柄解码（GPIO bit-bang SPI）
-- 多挡位速度控制（SELECT 三挡循环：60% / 80% / 100%，默认 80%）
-- R1/R2 为前进/后退油门，L1/L2 为原地左右旋转
-- 左右方向键 + 左摇杆 X 做差速转弯，上下方向保留扩展
-- 彩色键 + 右摇杆 控制 **双舵机云台**（摄像头俯仰/左右），支持步进 + 模拟微调
+- 底层：四轮差速驱动 + PS2 无线手柄 + 双舵机云台；
+- 中间层：ESP32-CAM 作为 **视频 + 控制网关**（WebSocket ⇄ UART）；
+- 上层：浏览器 Web 控制面板 + iStoreOS 路由器上的自动部署/更新。
 
-后续可扩展为：搭载树莓派实现 WebRTC 实时视频/语音 + 网络遥控。
+## 项目亮点
+
+- **真实四驱差速底盘 + 云台**：
+  - 四轮差速电机控制（左右并联驱动），支持原地旋转、差速转弯；
+  - 双舵机云台（Yaw/Pitch），支持步进与摇杆连续微调。
+
+- **本地 PS2 手柄体验**：
+  - SELECT 三挡速度（60% / 80% / 100%）；
+  - R1/R2 油门，L1/L2 原地左右旋转，方向键 + 左摇杆配合差速转弯。
+
+- **浏览器远程控制 + 实时视频**：
+  - Web UI 直接在浏览器里看 ESP32-CAM 视频流；
+  - 可视化控制小车运动与云台角度；
+  - 一键拍照生成缩略图，支持页面内预览与保存；
+  - 控制 ESP32-CAM 补光灯亮/灭，适应弱光环境。
+
+- **简单清晰的远程控制协议**：
+  - ESP32-CAM 接收 JSON：`{ type:"control", throttle, steer, yaw, pitch }`；
+  - 网关转换为 UART 文本：`C,throttle,steer,yaw,pitch\n` 发给 STM32；
+  - STM32 固件在一定超时时间内优先使用远程命令覆盖 PS2。
+
+- **一键部署与自动更新**：
+  - 裸机方案：`deploy_istoreos.sh` 一键在 iStoreOS/OpenWrt 上部署 Web（支持 `uninstall` 恢复干净环境）；
+  - Docker + CI 方案：在 iStoreOS 上跑一个 Nginx + GitHub Actions Runner 容器，push 到 GitHub 后自动拉取最新 `web/` 并更新页面。
+
+> 如果你只是想“快速玩起来”：
+>
+> 1. 按 `doc/pins.md` 接好硬件、烧录 STM32 和 ESP32-CAM 固件；
+> 2. 选一种 Web 部署方式（裸机脚本或 Docker + CI），打开 `http://<路由器IP>:8090/`；
+> 3. 在浏览器里控制小车和云台，看实时视频、拍照和开关补光灯。
+
+更多关于远程控制协议、ESP32-CAM 固件和 iStoreOS 部署细节，详见 `doc/remote_control.md`。
 
 ---
 
@@ -30,7 +59,11 @@ smallcar/
 │   ├─ index.html              # 主页面结构（视频预览 + 控制面板）
 │   ├─ style.css               # 布局与样式（响应式 + 悬浮控制）
 │   └─ main.js                 # WebSocket 控制逻辑 + UI 交互
-├─ deploy_istoreos.sh          # 一键将 web/ 部署到 iStoreOS/OpenWrt 的脚本
+├─ docker/
+│   └─ runner-web/             # 单容器 Nginx + GitHub Actions Runner（iStoreOS 上自动部署 Web）
+├─ .github/
+│   └─ workflows/              # CI 工作流（在 Docker Runner 内同步 web/ 到 Nginx）
+├─ deploy_istoreos.sh          # 裸机方式将 web/ 部署到 iStoreOS/OpenWrt 的脚本（支持 uninstall）
 ├─ .gitignore                  # Git 忽略规则
 ├─ README.md                   # 本项目说明（当前文档）
 └─ smallcar_keil/              # **当前主工程（Keil µVision5）**
@@ -206,18 +239,26 @@ smallcar/
 
 ## 8. 后续扩展方向（建议）
 
-目前工程已具备较完整的底层驱动和遥控逻辑，可在此基础上继续扩展：
+目前工程已经覆盖：本地 PS2 遥控、ESP32-CAM 网关、浏览器 Web 控制面板，以及在 iStoreOS 上的自动部署流程。后续可以在此基础上继续玩一些进阶方向：
 
-- 在小车上搭载树莓派：
-  - 采集摄像头视频 + 麦克风音频
-  - 通过 WebRTC 在局域网内实现实时视频/语音 + 浏览器遥控
-- 低成本 ESP32-CAM 方案：
-  - 使用 ESP32-CAM 直接采集摄像头画面，通过 Wi-Fi 推流到浏览器/手机或路由器（如 iStoreOS）；
-  - 在 ESP32 上实现简单的控制协议，通过串口/Wi-Fi 将遥控指令转发给 STM32 小车主控；
-- 通过串口连接上位机与 STM32：
-  - 上位机（树莓派或 ESP32）作为“网关”，浏览器/手机控制 → 上位机 → 串口 → STM32 执行动作
-- 补充文档：
-  - 电源设计说明、电池选择、机械结构（云台固定方式等）
+- **高级驾驶与导航算法**：
+  - 在 ESP32-CAM 或额外上位机上尝试简单视觉算法（巡线、颜色识别、障碍物检测等）；
+  - 基于浏览器/ESP32 给出目标指令，由 STM32 侧实现闭环调速与转向控制（半自动或预设轨迹巡航）。
+
+- **Web UI 与多车管理**：
+  - 在 Web 前端增加多车辆选择与状态面板，支持在同一页面切换不同小车；
+  - 增加行驶轨迹、传感器数据（如电压、电流、温度等）的可视化图表；
+  - 做中英文双语 UI 切换，方便分享给不同用户使用。
+
+- **ESP32-CAM / 网络侧增强**：
+  - 为 ESP32-CAM 增加 OTA 固件升级通道（通过 Web 或路由器推送固件）；
+  - WebSocket 与 HTTP 接口增加简单鉴权/Token 校验，限制未授权访问；
+  - 在 iStoreOS 上叠加反向代理/HTTPS（如 Nginx/OpenResty），用于更安全的远程访问。
+
+- **文档与工程化完善**：
+  - 补充更细致的电源设计建议、电池选择与实际电流测试结果；
+  - 增加云台/摄像头支架等机械结构的参考设计（3D 打印模型或装配示意）；
+  - 给出更多 CI/CD 示例（多分支、多环境），方便移植到其它项目。
 
 ---
 
@@ -285,7 +326,7 @@ smallcar/
  当本地修改了 `web/` 中的 HTML/CSS/JS 后，更新部署只需：
 
  1. 重新将更新后的仓库（或至少 `web/` 与 `deploy_istoreos.sh`）拷贝到路由器；
- 2. 再次在路由器上执行：
+  2. 再次在路由器上执行：
 
     ```sh
     cd /root/smallcar
@@ -294,21 +335,25 @@ smallcar/
 
     该脚本是幂等的：会覆盖 `/www/smallcar` 中的静态文件并重启 `smallcar-web` 服务，无需手动 stop/start。
 
- 此外，可以通过以下命令手动管理服务：
+    此外，可以通过以下命令手动管理服务：
+
+  ```sh
+  /etc/init.d/smallcar-web start      # 启动服务
+  /etc/init.d/smallcar-web stop       # 停止服务
+  /etc/init.d/smallcar-web restart    # 重启服务
+  /etc/init.d/smallcar-web enable     # 开机自启
+  /etc/init.d/smallcar-web disable    # 取消开机自启
+  ```
+
+ 如需**卸载 smallcar-web 服务并清理静态文件**（例如准备切换到 Docker 部署方案），可以在路由器上执行：
 
  ```sh
- /etc/init.d/smallcar-web start      # 启动服务
- /etc/init.d/smallcar-web stop       # 停止服务
- /etc/init.d/smallcar-web restart    # 重启服务
- /etc/init.d/smallcar-web enable     # 开机自启
- /etc/init.d/smallcar-web disable    # 取消开机自启
+ ssh root@192.168.31.1
+ cd /root/smallcar
+ sh deploy_istoreos.sh uninstall
  ```
 
- 更多关于 Web UI 布局、ESP32-CAM 行为与 iStoreOS 部署的说明，参见：`doc/remote_control.md`.
-
- ## 9. 许可协议
-
- 本项目采用 **MIT License** 开源协议发布。
+ 该命令会停止并禁用 `smallcar-web` 服务，删除 `/etc/init.d/smallcar-web` 脚本以及 `/www/smallcar` 目录。
 
  - 你可以自由地使用、复制、修改、合并、出版、分发本项目代码，甚至用于商业用途；
  - 唯一要求是在所有副本或重要部分中保留原始的版权声明和许可声明；
