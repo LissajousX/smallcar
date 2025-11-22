@@ -9,6 +9,9 @@ RUN apt-get update && \
       git \
       nginx \
       jq \
+      python3 \
+      python3-pip \
+    && pip3 install -U platformio \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /actions-runner

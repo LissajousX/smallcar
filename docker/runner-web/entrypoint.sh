@@ -6,8 +6,18 @@ if ! id runner >/dev/null 2>&1; then
   useradd -m runner
 fi
 
+# 确保关键目录存在，并将其所有权交给 runner，方便 CI 步骤读写
+mkdir -p /usr/share/nginx/html
+if [ -d /var/www ]; then
+  mkdir -p /var/www/html
+fi
+
 chown -R runner:runner /actions-runner
-chown -R runner:runner /usr/share/nginx/html /var/www/html
+for d in /usr/share/nginx/html /var/www/html; do
+  if [ -d "$d" ]; then
+    chown -R runner:runner "$d"
+  fi
+done
 
 # 启动 nginx（后台守护进程）
 /usr/sbin/nginx
