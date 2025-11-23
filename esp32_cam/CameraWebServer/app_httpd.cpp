@@ -21,6 +21,8 @@
 #include "driver/ledc.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 #include "sdkconfig.h"
 #include "camera_index.h"
 
@@ -54,6 +56,64 @@ static int s_ota_last_error = 0;
 static int s_ota_last_size = 0;
 // ota_last_ts: 最近一次 OTA 结束（成功或失败）时的时间戳（毫秒）
 static int64_t s_ota_last_ts = 0;
+
+#define OTA_NVS_NAMESPACE "ota_diag"
+#define OTA_NVS_KEY_RESULT "result"
+#define OTA_NVS_KEY_ERROR  "error"
+#define OTA_NVS_KEY_SIZE   "size"
+#define OTA_NVS_KEY_TS     "ts"
+
+static void ota_diag_load_from_nvs(void) {
+  nvs_handle_t h;
+  esp_err_t err = nvs_open(OTA_NVS_NAMESPACE, NVS_READONLY, &h);
+  if (err != ESP_OK) {
+    return;
+  }
+
+  int32_t v32;
+  int64_t v64;
+
+  if (nvs_get_i32(h, OTA_NVS_KEY_RESULT, &v32) == ESP_OK) {
+    s_ota_last_result = v32;
+  }
+  if (nvs_get_i32(h, OTA_NVS_KEY_ERROR, &v32) == ESP_OK) {
+    s_ota_last_error = v32;
+  }
+  if (nvs_get_i32(h, OTA_NVS_KEY_SIZE, &v32) == ESP_OK) {
+    s_ota_last_size = v32;
+  }
+  if (nvs_get_i64(h, OTA_NVS_KEY_TS, &v64) == ESP_OK) {
+    s_ota_last_ts = v64;
+  }
+
+  nvs_close(h);
+}
+
+static void ota_diag_save_to_nvs(int result, int error, int size) {
+  s_ota_last_result = result;
+  s_ota_last_error = error;
+  s_ota_last_size = size;
+  s_ota_last_ts = esp_timer_get_time() / 1000;
+
+  nvs_handle_t h;
+  esp_err_t err = nvs_open(OTA_NVS_NAMESPACE, NVS_READWRITE, &h);
+  if (err != ESP_OK) {
+    log_e("OTA: nvs_open failed: %d", err);
+    return;
+  }
+
+  nvs_set_i32(h, OTA_NVS_KEY_RESULT, s_ota_last_result);
+  nvs_set_i32(h, OTA_NVS_KEY_ERROR, s_ota_last_error);
+  nvs_set_i32(h, OTA_NVS_KEY_SIZE, s_ota_last_size);
+  nvs_set_i64(h, OTA_NVS_KEY_TS, s_ota_last_ts);
+
+  err = nvs_commit(h);
+  if (err != ESP_OK) {
+    log_e("OTA: nvs_commit failed: %d", err);
+  }
+
+  nvs_close(h);
+}
 
 typedef struct {
   httpd_req_t *req;
@@ -163,17 +223,10 @@ static esp_err_t bmp_handler(httpd_req_t *req) {
 static esp_err_t ota_post_handler(httpd_req_t *req) {
   esp_err_t err;
 
-  s_ota_last_result = 0;
-  s_ota_last_error = 0;
-  s_ota_last_size = 0;
-  s_ota_last_ts = 0;
-
   const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
   if (!update_partition) {
     log_e("OTA: no valid update partition");
-    s_ota_last_result = -1;
-    s_ota_last_error = ESP_ERR_NOT_FOUND;
-    s_ota_last_ts = esp_timer_get_time() / 1000;
+    ota_diag_save_to_nvs(-1, ESP_ERR_NOT_FOUND, 0);
     return httpd_resp_send_500(req);
   }
 
@@ -183,9 +236,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
   if (err != ESP_OK) {
     log_e("OTA: esp_ota_begin failed: %d", err);
-    s_ota_last_result = -1;
-    s_ota_last_error = err;
-    s_ota_last_ts = esp_timer_get_time() / 1000;
+    ota_diag_save_to_nvs(-1, err, 0);
     return httpd_resp_send_500(req);
   }
 
@@ -194,6 +245,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   if (!buf) {
     log_e("OTA: malloc failed");
     esp_ota_end(ota_handle);
+    ota_diag_save_to_nvs(-1, ESP_ERR_NO_MEM, 0);
     return httpd_resp_send_500(req);
   }
 
@@ -202,9 +254,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     log_e("OTA: invalid content length %d", remaining);
     free(buf);
     esp_ota_end(ota_handle);
-    s_ota_last_result = -1;
-    s_ota_last_error = ESP_ERR_INVALID_SIZE;
-    s_ota_last_ts = esp_timer_get_time() / 1000;
+    ota_diag_save_to_nvs(-1, ESP_ERR_INVALID_SIZE, 0);
     return httpd_resp_send_500(req);
   }
 
@@ -215,9 +265,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
       log_e("OTA: recv error %d", recv_len);
       free(buf);
       esp_ota_end(ota_handle);
-       s_ota_last_result = -1;
-       s_ota_last_error = recv_len;  // httpd_req_recv 出错时通常返回 ESP_FAIL/-1
-       s_ota_last_ts = esp_timer_get_time() / 1000;
+      ota_diag_save_to_nvs(-1, recv_len, s_ota_last_size);
       return httpd_resp_send_500(req);
     }
 
@@ -226,9 +274,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
       log_e("OTA: esp_ota_write failed: %d", err);
       free(buf);
       esp_ota_end(ota_handle);
-      s_ota_last_result = -1;
-      s_ota_last_error = err;
-      s_ota_last_ts = esp_timer_get_time() / 1000;
+      ota_diag_save_to_nvs(-1, err, s_ota_last_size);
       return httpd_resp_send_500(req);
     }
 
@@ -241,18 +287,14 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   err = esp_ota_end(ota_handle);
   if (err != ESP_OK) {
     log_e("OTA: esp_ota_end failed: %d", err);
-    s_ota_last_result = -1;
-    s_ota_last_error = err;
-    s_ota_last_ts = esp_timer_get_time() / 1000;
+    ota_diag_save_to_nvs(-1, err, s_ota_last_size);
     return httpd_resp_send_500(req);
   }
 
   err = esp_ota_set_boot_partition(update_partition);
   if (err != ESP_OK) {
     log_e("OTA: set_boot_partition failed: %d", err);
-    s_ota_last_result = -1;
-    s_ota_last_error = err;
-    s_ota_last_ts = esp_timer_get_time() / 1000;
+    ota_diag_save_to_nvs(-1, err, s_ota_last_size);
     return httpd_resp_send_500(req);
   }
 
@@ -261,9 +303,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   httpd_resp_sendstr(req, "OK");
 
   log_i("OTA: update successful, restarting");
-  s_ota_last_result = 1;
-  s_ota_last_error = 0;
-  s_ota_last_ts = esp_timer_get_time() / 1000;
+  ota_diag_save_to_nvs(1, ESP_OK, s_ota_last_size);
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   esp_restart();
 
@@ -881,6 +921,9 @@ static esp_err_t index_handler(httpd_req_t *req) {
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 16;
+
+  // 从 NVS 恢复上一次 OTA 结果，这样即使设备在 OTA 后重启，/status 也能看到最新一次 OTA 的诊断信息
+  ota_diag_load_from_nvs();
 
   httpd_uri_t index_uri = {
     .uri = "/",
