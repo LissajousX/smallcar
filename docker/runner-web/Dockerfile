@@ -26,6 +26,8 @@ RUN curl -L "https://github.com/actions/runner/releases/download/v${RUNNER_VERSI
 # Web 根目录，CI 会把 web/ 拷贝到这里，由 nginx 提供静态文件
 RUN mkdir -p /usr/share/nginx/html
 
+COPY nginx.conf /etc/nginx/nginx.conf
+
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
