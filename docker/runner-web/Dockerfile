@@ -18,6 +18,10 @@ RUN apt-get update && \
 ENV TZ=Asia/Shanghai
 RUN ln -fs /usr/share/zoneinfo/$TZ /etc/localtime
 
+# 把 PlatformIO 的主目录放到 /actions-runner/.platformio，
+# 这样通过宿主机挂载的 /opt/smallcar/actions-runner 可以持久化 toolchain 缓存
+ENV PLATFORMIO_CORE_DIR=/actions-runner/.platformio
+
 WORKDIR /actions-runner
 
 ARG RUNNER_VERSION=2.311.0
