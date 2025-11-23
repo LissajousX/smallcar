@@ -45,6 +45,16 @@ bool isStreaming = false;
 
 #endif
 
+// OTA 状态跟踪：用于在 /status 中向前端暴露最近一次 OTA 结果，方便诊断
+// ota_last_result: 0=未执行，1=成功，-1=失败
+static int s_ota_last_result = 0;
+// ota_last_error: esp_err_t 数值（失败时），0 表示无错误 / 成功
+static int s_ota_last_error = 0;
+// ota_last_size: 最近一次接收到并写入的固件总字节数
+static int s_ota_last_size = 0;
+// ota_last_ts: 最近一次 OTA 结束（成功或失败）时的时间戳（毫秒）
+static int64_t s_ota_last_ts = 0;
+
 typedef struct {
   httpd_req_t *req;
   size_t len;
@@ -153,9 +163,17 @@ static esp_err_t bmp_handler(httpd_req_t *req) {
 static esp_err_t ota_post_handler(httpd_req_t *req) {
   esp_err_t err;
 
+  s_ota_last_result = 0;
+  s_ota_last_error = 0;
+  s_ota_last_size = 0;
+  s_ota_last_ts = 0;
+
   const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
   if (!update_partition) {
     log_e("OTA: no valid update partition");
+    s_ota_last_result = -1;
+    s_ota_last_error = ESP_ERR_NOT_FOUND;
+    s_ota_last_ts = esp_timer_get_time() / 1000;
     return httpd_resp_send_500(req);
   }
 
@@ -165,6 +183,9 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
   if (err != ESP_OK) {
     log_e("OTA: esp_ota_begin failed: %d", err);
+    s_ota_last_result = -1;
+    s_ota_last_error = err;
+    s_ota_last_ts = esp_timer_get_time() / 1000;
     return httpd_resp_send_500(req);
   }
 
@@ -181,6 +202,9 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     log_e("OTA: invalid content length %d", remaining);
     free(buf);
     esp_ota_end(ota_handle);
+    s_ota_last_result = -1;
+    s_ota_last_error = ESP_ERR_INVALID_SIZE;
+    s_ota_last_ts = esp_timer_get_time() / 1000;
     return httpd_resp_send_500(req);
   }
 
@@ -191,6 +215,9 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
       log_e("OTA: recv error %d", recv_len);
       free(buf);
       esp_ota_end(ota_handle);
+       s_ota_last_result = -1;
+       s_ota_last_error = recv_len;  // httpd_req_recv 出错时通常返回 ESP_FAIL/-1
+       s_ota_last_ts = esp_timer_get_time() / 1000;
       return httpd_resp_send_500(req);
     }
 
@@ -199,9 +226,13 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
       log_e("OTA: esp_ota_write failed: %d", err);
       free(buf);
       esp_ota_end(ota_handle);
+      s_ota_last_result = -1;
+      s_ota_last_error = err;
+      s_ota_last_ts = esp_timer_get_time() / 1000;
       return httpd_resp_send_500(req);
     }
 
+    s_ota_last_size += recv_len;
     remaining -= recv_len;
   }
 
@@ -210,12 +241,18 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   err = esp_ota_end(ota_handle);
   if (err != ESP_OK) {
     log_e("OTA: esp_ota_end failed: %d", err);
+    s_ota_last_result = -1;
+    s_ota_last_error = err;
+    s_ota_last_ts = esp_timer_get_time() / 1000;
     return httpd_resp_send_500(req);
   }
 
   err = esp_ota_set_boot_partition(update_partition);
   if (err != ESP_OK) {
     log_e("OTA: set_boot_partition failed: %d", err);
+    s_ota_last_result = -1;
+    s_ota_last_error = err;
+    s_ota_last_ts = esp_timer_get_time() / 1000;
     return httpd_resp_send_500(req);
   }
 
@@ -224,6 +261,9 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   httpd_resp_sendstr(req, "OK");
 
   log_i("OTA: update successful, restarting");
+  s_ota_last_result = 1;
+  s_ota_last_error = 0;
+  s_ota_last_ts = esp_timer_get_time() / 1000;
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   esp_restart();
 
@@ -648,6 +688,11 @@ static esp_err_t status_handler(httpd_req_t *req) {
   p += sprintf(p, ",\"fw_version\":\"%s\"", FW_VERSION);
   // 在状态 JSON 中附带固件构建时间，便于前端确认 OTA 升级后的版本
   p += sprintf(p, ",\"fw_build\":\"%s\"", FW_BUILD_STR);
+  // OTA 诊断字段：方便前端在没有串口日志的情况下查看最近一次 OTA 结果
+  p += sprintf(p, ",\"ota_last_result\":%d", s_ota_last_result);
+  p += sprintf(p, ",\"ota_last_error\":%d", s_ota_last_error);
+  p += sprintf(p, ",\"ota_last_size\":%d", s_ota_last_size);
+  p += sprintf(p, ",\"ota_last_ts\":%lld", (long long)s_ota_last_ts);
   *p++ = '}';
   *p++ = 0;
   httpd_resp_set_type(req, "application/json");
