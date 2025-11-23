@@ -52,6 +52,9 @@ smallcar/
 │   ├─ ps2_protocol.md         # PS2 手柄协议与 STM32 接线/时序说明
 │   ├─ ps2_keymap.md           # PS2 键位与控制映射 + Data[] 实测
 │   ├─ pins.md                 # 引脚定义汇总（电机/PS2/云台）
+│   ├─ remote_control.md       # ESP32-CAM + Web + STM32 远程控制架构与协议
+│   ├─ esp32_cam_ota.md        # ESP32-CAM OTA 固件升级设计与使用说明
+│   ├─ esp32_cam_ota_troubleshooting.md # ESP32-CAM OTA 二次升级失败排查与解决记录
 │   └─ remote_control.md       # ESP32-CAM + Web + STM32 远程控制架构与协议
 ├─ esp32_cam/                  # ESP32-CAM 摄像头 + WebSocket + UART 网关固件
 │   └─ CameraWebServer/...

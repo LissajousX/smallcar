@@ -566,3 +566,14 @@ docker run -d \
 
 3. 等待 GitHub Actions 中对应 workflow 运行完成；
 4. 在浏览器访问 `http://<路由器IP>:8090/`，即可看到最新版本的 Web 控制面板（建议使用 Ctrl+F5 强制刷新缓存）。
+
+## 7. ESP32-CAM OTA 固件升级文档索引
+
+本文件主要聚焦于“浏览器 ⇄ ESP32-CAM ⇄ STM32” 的远程控制链路与 UART 协议，实现细节在 `esp32_cam/CameraWebServer` 代码中。
+
+关于 **ESP32-CAM 固件 OTA 升级** 的设计、实现和故障排查，请参考：
+
+- `esp32_cam_ota.md`：ESP32-CAM OTA 分区布局、`/ota` HTTP 接口、NVS 诊断与 Web 端使用方法；
+- `esp32_cam_ota_troubleshooting.md`：烧录后第二次 OTA 失败（`TG1WDT_SYS_RESET`）的详细定位与解决过程，从分区/回滚/看门狗原理到具体工程实践都有完整记录。
+
+建议在阅读本文件了解整体控制架构后，再结合上述两篇 OTA 文档一起查看，可以更系统地理解 ESP32-CAM 在本工程中的角色与升级机制。
