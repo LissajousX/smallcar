@@ -547,6 +547,17 @@
     videoLightLevelInput.style.width = `${length}px`;
   }
 
+  // 停止/暂停视频流时，同步重置补光灯前端状态（按钮高亮与亮度条可见性）
+  function resetLightUI() {
+    lightOn = false;
+    if (lightBtn) {
+      lightBtn.classList.remove("active");
+    }
+    if (videoLightSlider) {
+      videoLightSlider.classList.remove("visible");
+    }
+  }
+
   function setDrive(throttle, steer) {
     state.throttle = clamp(throttle, -100, 100);
     state.steer = clamp(steer, -100, 100);
@@ -1214,6 +1225,8 @@
       if (videoPlayToggle) {
         videoPlayToggle.classList.remove("playing");
       }
+      // 与后端在流结束时自动关灯保持一致，前端同步重置灯的 UI 状态
+      resetLightUI();
     };
 
     const loadVideo = () => {
@@ -1267,6 +1280,8 @@
       if (videoPlayToggle) {
         videoPlayToggle.classList.remove("playing");
       }
+      // 暂停为单帧预览时，同样视为关闭流，重置灯的 UI 状态
+      resetLightUI();
     };
 
     // 如果加载失败，回退到占位图
