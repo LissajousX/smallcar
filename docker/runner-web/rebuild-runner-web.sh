@@ -8,6 +8,10 @@ IMAGE_NAME="smallcar-runner-web"
 CONTAINER_NAME="smallcar-runner-web"
 HOST_PORT="8099"   # 对外暴露的端口，前端默认使用 8099，如有不同请自行修改
 
+# 持久化挂载目录（按你之前在 iStoreOS 上的惯例）
+HOST_WEBROOT="/opt/smallcar/webroot"           # 映射到容器内 /usr/share/nginx/html
+HOST_RUNNER_DIR="/opt/smallcar/actions-runner" # 映射到容器内 /actions-runner
+
 # 计算仓库根目录（本脚本位于 docker/runner-web/ 下）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -30,6 +34,9 @@ if docker ps -a --format '{{.Names}}' | grep -w "${CONTAINER_NAME}" >/dev/null 2
   docker rm "${CONTAINER_NAME}" || true
 fi
 
+# 确保宿主机挂载目录存在
+mkdir -p "${HOST_WEBROOT}" "${HOST_RUNNER_DIR}"
+
 # 构建新镜像
 cd "${REPO_ROOT}"
 echo "[INFO] Building image ${IMAGE_NAME} from docker/runner-web..."
@@ -41,6 +48,8 @@ docker run -d \
   --name "${CONTAINER_NAME}" \
   --restart unless-stopped \
   -p "${HOST_PORT}:80" \
+  -v "${HOST_WEBROOT}:/usr/share/nginx/html" \
+  -v "${HOST_RUNNER_DIR}:/actions-runner" \
   -v "${NGINX_CONF_HOST_PATH}:${NGINX_CONF_CONTAINER_PATH}:ro" \
   "${IMAGE_NAME}"
 
