@@ -36,6 +36,28 @@
 //#define CAMERA_MODEL_ESP32S3_CAM_LCD
 //#define CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3 // Has PSRAM
 //#define CAMERA_MODEL_DFRobot_Romeo_ESP32S3 // Has PSRAM
+
+// 如果编译系统（如 PlatformIO 的 build_flags）没有选择摄像头型号，
+// 则在 Arduino IDE 等环境下默认使用 AI THINKER 模块。
+#if !defined(CAMERA_MODEL_WROVER_KIT) && \
+    !defined(CAMERA_MODEL_ESP_EYE) && \
+    !defined(CAMERA_MODEL_ESP32S3_EYE) && \
+    !defined(CAMERA_MODEL_M5STACK_PSRAM) && \
+    !defined(CAMERA_MODEL_M5STACK_V2_PSRAM) && \
+    !defined(CAMERA_MODEL_M5STACK_WIDE) && \
+    !defined(CAMERA_MODEL_M5STACK_ESP32CAM) && \
+    !defined(CAMERA_MODEL_M5STACK_UNITCAM) && \
+    !defined(CAMERA_MODEL_M5STACK_CAMS3_UNIT) && \
+    !defined(CAMERA_MODEL_AI_THINKER) && \
+    !defined(CAMERA_MODEL_TTGO_T_JOURNAL) && \
+    !defined(CAMERA_MODEL_XIAO_ESP32S3) && \
+    !defined(CAMERA_MODEL_ESP32_CAM_BOARD) && \
+    !defined(CAMERA_MODEL_ESP32S2_CAM_BOARD) && \
+    !defined(CAMERA_MODEL_ESP32S3_CAM_LCD) && \
+    !defined(CAMERA_MODEL_DFRobot_FireBeetle2_ESP32S3) && \
+    !defined(CAMERA_MODEL_DFRobot_Romeo_ESP32S3)
+#define CAMERA_MODEL_AI_THINKER // Has PSRAM
+#endif
 #include "camera_pins.h"
 
 // ===========================

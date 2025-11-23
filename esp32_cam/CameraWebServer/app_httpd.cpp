@@ -11,12 +11,14 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+#include <Arduino.h>
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "esp_camera.h"
 #include "img_converters.h"
 #include "fb_gfx.h"
 #include "esp32-hal-ledc.h"
+#include "driver/ledc.h"
 #include "esp_ota_ops.h"
 #include "esp_system.h"
 #include "sdkconfig.h"
@@ -32,9 +34,11 @@
 // LED FLASH setup
 #if CONFIG_LED_ILLUMINATOR_ENABLED
 
-#define LED_LEDC_GPIO             4  // configure LED pin (ESP32-CAM flash LED 默认脚一般为 GPIO4)
-#define LED_LEDC_CHANNEL          7
-#define CONFIG_LED_MAX_INTENSITY 255
+#define LED_LEDC_GPIO             4   // ESP32-CAM flash LED 一般接 GPIO4
+#define LED_LEDC_CHANNEL          LEDC_CHANNEL_1
+#define LED_LEDC_TIMER            LEDC_TIMER_1
+#define LED_LEDC_MODE             LEDC_HIGH_SPEED_MODE
+#define CONFIG_LED_MAX_INTENSITY  255
 
 int led_duty = 0;
 bool isStreaming = false;
@@ -100,9 +104,8 @@ void enable_led(bool en) {  // Turn LED On or Off
   if (en && isStreaming && (led_duty > CONFIG_LED_MAX_INTENSITY)) {
     duty = CONFIG_LED_MAX_INTENSITY;
   }
-  ledcWrite(LED_LEDC_CHANNEL, duty);
-  //ledc_set_duty(CONFIG_LED_LEDC_SPEED_MODE, CONFIG_LED_LEDC_CHANNEL, duty);
-  //ledc_update_duty(CONFIG_LED_LEDC_SPEED_MODE, CONFIG_LED_LEDC_CHANNEL);
+  ledc_set_duty(LED_LEDC_MODE, LED_LEDC_CHANNEL, duty);
+  ledc_update_duty(LED_LEDC_MODE, LED_LEDC_CHANNEL);
   log_i("Set LED intensity to %d", duty);
 }
 #endif
@@ -225,6 +228,13 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
   esp_restart();
 
   return ESP_OK;
+}
+
+static esp_err_t ota_options_handler(httpd_req_t *req) {
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Methods", "POST, OPTIONS");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type");
+  return httpd_resp_send(req, NULL, 0);
 }
 
 static size_t jpg_encode_stream(void *arg, size_t index, const void *data, size_t len) {
@@ -840,6 +850,19 @@ void startCameraServer() {
 #endif
   };
 
+  httpd_uri_t ota_options_uri = {
+    .uri = "/ota",
+    .method = HTTP_OPTIONS,
+    .handler = ota_options_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
   httpd_uri_t ota_uri = {
     .uri = "/ota",
     .method = HTTP_POST,
@@ -993,6 +1016,7 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &capture_uri);
     httpd_register_uri_handler(camera_httpd, &bmp_uri);
 
+    httpd_register_uri_handler(camera_httpd, &ota_options_uri);
     httpd_register_uri_handler(camera_httpd, &xclk_uri);
     httpd_register_uri_handler(camera_httpd, &reg_uri);
     httpd_register_uri_handler(camera_httpd, &greg_uri);
@@ -1012,8 +1036,25 @@ void startCameraServer() {
 void setupLedFlash(int pin) {
 #if CONFIG_LED_ILLUMINATOR_ENABLED
   // 使用较高的 PWM 频率，避免 5kHz 附近的人耳可听啸叫
-  ledcSetup(LED_LEDC_CHANNEL, 20000, 8);
-  ledcAttachPin(pin, LED_LEDC_CHANNEL);
+  ledc_timer_config_t ledc_timer = {
+    .speed_mode       = LED_LEDC_MODE,
+    .duty_resolution  = LEDC_TIMER_8_BIT,
+    .timer_num        = LED_LEDC_TIMER,
+    .freq_hz          = 20000,
+    .clk_cfg          = LEDC_AUTO_CLK,
+  };
+  ledc_timer_config(&ledc_timer);
+
+  ledc_channel_config_t ledc_channel = {
+    .gpio_num   = (gpio_num_t)pin,
+    .speed_mode = LED_LEDC_MODE,
+    .channel    = LED_LEDC_CHANNEL,
+    .intr_type  = LEDC_INTR_DISABLE,
+    .timer_sel  = LED_LEDC_TIMER,
+    .duty       = 0,
+    .hpoint     = 0,
+  };
+  ledc_channel_config(&ledc_channel);
 #else
   log_i("LED flash is disabled -> CONFIG_LED_ILLUMINATOR_ENABLED = 0");
 #endif

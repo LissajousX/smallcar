@@ -54,13 +54,13 @@ jobs:
           echo "Sync web/ to Nginx document roots inside Docker runner..."
           # /usr/share/nginx/html（部分发行版默认）
           if [ -d /usr/share/nginx/html ]; then
-            rm -rf /usr/share/nginx/html/*
+            find /usr/share/nginx/html -mindepth 1 -maxdepth 1 ! -name firmware -exec rm -rf {} +
             cp -a web/. /usr/share/nginx/html/
           fi
 
           # /var/www/html（Ubuntu/Debian 常见默认）
           if [ -d /var/www/html ]; then
-            rm -rf /var/www/html/*
+            find /var/www/html -mindepth 1 -maxdepth 1 ! -name firmware -exec rm -rf {} +
             cp -a web/. /var/www/html/
           fi
 

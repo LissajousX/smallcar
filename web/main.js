@@ -1423,13 +1423,10 @@
         otaStatus.style.color = "#facc15";
 
         try {
-          // 使用 no-cors，避免从路由器页面跨域访问 ESP32-CAM 时触发 CORS 预检导致 TypeError
           await fetch(otaUrl, {
             method: "POST",
             body: file,
-            mode: "no-cors",
           });
-          // no-cors 模式下无法读取响应状态/内容，只要不抛异常就认为请求已成功发出
           otaStatus.textContent =
             "升级请求已发送，设备将自动重启，请稍等片刻后重新连接。";
           otaStatus.style.color = "#34d399";
@@ -1501,7 +1498,6 @@
           await fetch(otaUrl, {
             method: "POST",
             body: fwBlob,
-            mode: "no-cors",
           });
           otaStatus.textContent =
             "升级请求已发送，设备将自动重启，请稍等片刻后重新连接。";
