@@ -3,6 +3,13 @@
 #include <ArduinoJson.h>
 #include <WebSocketsServer.h>
 #include <string.h>
+#include "esp_ota_ops.h"
+#include "esp_task_wdt.h"
+#include "esp_partition.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
@@ -160,10 +167,85 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
   }
 }
 
+static void ota_preerase_task(void *param) {
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  const esp_partition_t *ota0 = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, NULL);
+  const esp_partition_t *ota1 = esp_partition_find_first(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_1, NULL);
+  const esp_partition_t *target = NULL;
+
+  if (ota0 && ota0 != running) {
+    target = ota0;
+  } else if (ota1 && ota1 != running) {
+    target = ota1;
+  }
+
+  if (!target) {
+    Serial.println("OTA preerase: no inactive OTA partition found");
+    vTaskDelete(NULL);
+    return;
+  }
+
+  Serial.printf("OTA preerase: target '%s' at 0x%lx, size 0x%lx\n",
+                target->label,
+                (unsigned long)target->address,
+                (unsigned long)target->size);
+
+  const size_t chunk = 4 * 1024;
+  size_t offset = 0;
+  size_t total_erased = 0;
+
+  while (offset < target->size) {
+    size_t erase_size = chunk;
+    if (offset + erase_size > target->size) {
+      erase_size = target->size - offset;
+    }
+
+    esp_err_t err = esp_partition_erase_range(target, offset, erase_size);
+    if (err != ESP_OK) {
+      Serial.printf("OTA preerase: erase error %d at offset 0x%lx, size 0x%lx\n",
+                    (int)err,
+                    (unsigned long)offset,
+                    (unsigned long)erase_size);
+      break;
+    }
+
+    offset += erase_size;
+    total_erased += erase_size;
+
+    if ((offset % (256 * 1024) == 0) || (offset >= target->size)) {
+      Serial.printf("OTA preerase: erased %lu / %lu bytes\n",
+                    (unsigned long)offset,
+                    (unsigned long)target->size);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+
+  Serial.printf("OTA preerase: finished, erased %lu bytes\n",
+                (unsigned long)total_erased);
+
+  // Clear preerase flag in NVS so this task will not run again on future boots
+  nvs_handle_t h_flag;
+  esp_err_t err_flag = nvs_open("ota_diag", NVS_READWRITE, &h_flag);
+  if (err_flag == ESP_OK) {
+    int32_t flag = 0;
+    nvs_set_i32(h_flag, "preerase", flag);
+    nvs_commit(h_flag);
+    nvs_close(h_flag);
+  } else {
+    Serial.printf("OTA preerase: nvs_open for clear flag failed: %d\n", (int)err_flag);
+  }
+
+  vTaskDelete(NULL);
+}
+
 void setup() {
   Serial.begin(115200);
-  Serial.setDebugOutput(true);
   Serial.println();
+
+  // Fully disable Task Watchdog to avoid resets during long OTA flash erase
+  esp_task_wdt_deinit();
+  Serial.println("Task WDT deinitialized");
 
   ControlSerial.begin(UART_BAUD, SERIAL_8N1, UART_RX_PIN, UART_TX_PIN);
 
@@ -263,6 +345,40 @@ void setup() {
   }
   Serial.println("");
   Serial.println("WiFi connected");
+
+  // 标记当前 OTA 应用为有效，取消回滚保护
+  // 如果不调用此函数，系统会认为当前固件处于"待验证"状态，可能阻止后续 OTA
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  esp_ota_img_states_t ota_state;
+  if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
+    if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) {
+      Serial.println("OTA: marking current app as valid (was pending verify)");
+      esp_ota_mark_app_valid_cancel_rollback();
+    } else {
+      Serial.printf("OTA: current app state: %d\n", ota_state);
+    }
+  }
+
+  bool startPreerase = false;
+  nvs_handle_t h_flag;
+  esp_err_t err_flag = nvs_open("ota_diag", NVS_READWRITE, &h_flag);
+  if (err_flag == ESP_OK) {
+    int32_t flag = 0;
+    esp_err_t get_res = nvs_get_i32(h_flag, "preerase", &flag);
+    if (get_res == ESP_OK && flag == 1) {
+      startPreerase = true;
+    }
+    nvs_close(h_flag);
+  } else {
+    Serial.printf("OTA preerase: nvs_open for read flag failed: %d\n", (int)err_flag);
+  }
+
+  if (startPreerase) {
+    Serial.println("OTA preerase: flag set, starting background erase task");
+    xTaskCreatePinnedToCore(ota_preerase_task, "ota_preerase", 4096, NULL, 1, NULL, 0);
+  } else {
+    Serial.println("OTA preerase: flag not set, skip");
+  }
 
   startCameraServer();
 

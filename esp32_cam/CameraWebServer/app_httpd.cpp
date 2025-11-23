@@ -62,6 +62,7 @@ static int64_t s_ota_last_ts = 0;
 #define OTA_NVS_KEY_ERROR  "error"
 #define OTA_NVS_KEY_SIZE   "size"
 #define OTA_NVS_KEY_TS     "ts"
+#define OTA_NVS_KEY_PREERASE "preerase"
 
 static void ota_diag_load_from_nvs(void) {
   nvs_handle_t h;
@@ -225,7 +226,14 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
 
   // 标记一次新的 OTA 开始，先清零本次计数，方便在异常重启时也能看到 OTA 已经触发过
   s_ota_last_size = 0;
-  ota_diag_save_to_nvs(0, 0, 0);
+  ota_diag_save_to_nvs(0, 1, 0);  // error=1: 进入 handler
+
+  // 打印当前运行的分区信息
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  if (running) {
+    log_i("OTA: currently running from partition '%s' at offset 0x%lx, size 0x%lx", 
+          running->label, (unsigned long)running->address, (unsigned long)running->size);
+  }
 
   const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
   if (!update_partition) {
@@ -234,15 +242,36 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     return httpd_resp_send_500(req);
   }
 
-  log_i("OTA: writing to partition subtype %d at offset 0x%lx", update_partition->subtype, (unsigned long)update_partition->address);
+  log_i("OTA: next update partition '%s' at offset 0x%lx, size 0x%lx", 
+        update_partition->label, (unsigned long)update_partition->address, (unsigned long)update_partition->size);
+  
+  ota_diag_save_to_nvs(0, 2, 0);  // error=2: 找到分区
+  
+  // 检查固件大小是否会超出分区
+  int content_len = req->content_len;
+  if (content_len > (int)update_partition->size) {
+    log_e("OTA: firmware size %d exceeds partition size %lu", content_len, (unsigned long)update_partition->size);
+    ota_diag_save_to_nvs(-1, ESP_ERR_INVALID_SIZE, 0);
+    return httpd_resp_send_500(req);
+  }
+  
+  ota_diag_save_to_nvs(0, 21, content_len);  // error=21: 大小检查通过，用 size 记录固件大小
 
+  log_i("OTA: calling esp_ota_begin (may take 10-30 seconds)...");
   esp_ota_handle_t ota_handle = 0;
   err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &ota_handle);
+  
+  // 立即记录 esp_ota_begin 返回了（即使可能有错误）
+  ota_diag_save_to_nvs(0, 3, err);  // error=3: esp_ota_begin 返回了，用 size 字段临时记录返回值
+  log_i("OTA: esp_ota_begin returned: %d", err);
+  
   if (err != ESP_OK) {
     log_e("OTA: esp_ota_begin failed: %d", err);
     ota_diag_save_to_nvs(-1, err, 0);
     return httpd_resp_send_500(req);
   }
+
+  ota_diag_save_to_nvs(0, 4, 0);  // error=4: esp_ota_begin 成功，准备 malloc
 
   const size_t buf_size = 1024;
   uint8_t *buf = (uint8_t *)malloc(buf_size);
@@ -253,6 +282,8 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     return httpd_resp_send_500(req);
   }
 
+  ota_diag_save_to_nvs(0, 5, 0);  // error=5: malloc 成功
+
   int remaining = req->content_len;
   if (remaining <= 0) {
     log_e("OTA: invalid content length %d", remaining);
@@ -261,6 +292,9 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     ota_diag_save_to_nvs(-1, ESP_ERR_INVALID_SIZE, 0);
     return httpd_resp_send_500(req);
   }
+
+  log_i("OTA: content_len=%d, starting receive", remaining);
+  ota_diag_save_to_nvs(0, 6, 0);  // error=6: 准备接收数据
 
   int progress_counter = 0;
   while (remaining > 0) {
@@ -316,6 +350,16 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
 
   log_i("OTA: update successful, restarting");
   ota_diag_save_to_nvs(1, ESP_OK, s_ota_last_size);
+  nvs_handle_t h_flag;
+  esp_err_t err_flag = nvs_open(OTA_NVS_NAMESPACE, NVS_READWRITE, &h_flag);
+  if (err_flag == ESP_OK) {
+    int32_t flag = 1;
+    nvs_set_i32(h_flag, OTA_NVS_KEY_PREERASE, flag);
+    nvs_commit(h_flag);
+    nvs_close(h_flag);
+  } else {
+    log_e("OTA: nvs_open for preerase flag failed: %d", err_flag);
+  }
   vTaskDelay(1000 / portTICK_PERIOD_MS);
   esp_restart();
 
@@ -663,7 +707,7 @@ static int print_reg(char *p, sensor_t *s, uint16_t reg, uint32_t mask) {
 
 // 固件构建信息，用于前端确认 OTA 升级是否生效
 #ifndef FW_VERSION
-#define FW_VERSION "DEV"
+#define FW_VERSION "DEV10"
 #endif
 #define FW_BUILD_STR __DATE__ " " __TIME__
 
@@ -740,6 +784,30 @@ static esp_err_t status_handler(httpd_req_t *req) {
   p += sprintf(p, ",\"fw_version\":\"%s\"", FW_VERSION);
   // 在状态 JSON 中附带固件构建时间，便于前端确认 OTA 升级后的版本
   p += sprintf(p, ",\"fw_build\":\"%s\"", FW_BUILD_STR);
+  
+  // OTA 分区信息：诊断分区表配置问题
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  if (running) {
+    p += sprintf(p, ",\"ota_running_label\":\"%s\"", running->label);
+    p += sprintf(p, ",\"ota_running_addr\":%lu", (unsigned long)running->address);
+    p += sprintf(p, ",\"ota_running_size\":%lu", (unsigned long)running->size);
+  } else {
+    p += sprintf(p, ",\"ota_running_label\":\"unknown\"");
+    p += sprintf(p, ",\"ota_running_addr\":0");
+    p += sprintf(p, ",\"ota_running_size\":0");
+  }
+  
+  const esp_partition_t *next_update = esp_ota_get_next_update_partition(NULL);
+  if (next_update) {
+    p += sprintf(p, ",\"ota_next_label\":\"%s\"", next_update->label);
+    p += sprintf(p, ",\"ota_next_addr\":%lu", (unsigned long)next_update->address);
+    p += sprintf(p, ",\"ota_next_size\":%lu", (unsigned long)next_update->size);
+  } else {
+    p += sprintf(p, ",\"ota_next_label\":\"none\"");
+    p += sprintf(p, ",\"ota_next_addr\":0");
+    p += sprintf(p, ",\"ota_next_size\":0");
+  }
+  
   // OTA 诊断字段：方便前端在没有串口日志的情况下查看最近一次 OTA 结果
   p += sprintf(p, ",\"ota_last_result\":%d", s_ota_last_result);
   p += sprintf(p, ",\"ota_last_error\":%d", s_ota_last_error);
