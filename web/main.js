@@ -114,6 +114,7 @@
   const statusYaw = document.getElementById("status-yaw");
   const statusPitch = document.getElementById("status-pitch");
   const statusFwBuild = document.getElementById("status-fw-build");
+  const snapshotUploadStatus = document.getElementById("snapshot-upload-status");
 
   const ovStatusThrottle = document.getElementById("ov-status-throttle");
   const ovStatusSteer = document.getElementById("ov-status-steer");
@@ -135,6 +136,8 @@
 
   const VIDEO_PLACEHOLDER = "placeholder-video.svg";
   const DEFAULT_ROUTER_BASE = "http://192.168.31.1:8099";
+  const SNAPSHOT_DEFAULT_HOST = "192.168.31.1";
+  const SNAPSHOT_DEFAULT_PORT = 8099;
 
   const DRIVE_SPEED = 80;
   const DRIVE_STEER_FULL = 100;
@@ -433,6 +436,90 @@
     wsStatus.textContent = "";
     wsStatus.title = text;
     wsStatus.className = `status ${cls}`;
+  }
+
+  function setSnapshotUploadStatus(state, hint) {
+    if (!snapshotUploadStatus) {
+      return;
+    }
+
+    snapshotUploadStatus.classList.remove(
+      "snapshot-upload-icon--idle",
+      "snapshot-upload-icon--uploading",
+      "snapshot-upload-icon--ok",
+      "snapshot-upload-icon--error",
+    );
+
+    let cls = "snapshot-upload-icon--idle";
+    if (state === "uploading") {
+      cls = "snapshot-upload-icon--uploading";
+    } else if (state === "ok") {
+      cls = "snapshot-upload-icon--ok";
+    } else if (state === "error") {
+      cls = "snapshot-upload-icon--error";
+    }
+
+    snapshotUploadStatus.classList.add(cls);
+    if (typeof hint === "string" && hint) {
+      snapshotUploadStatus.title = hint;
+    }
+  }
+
+  async function triggerSnapshotToRouter() {
+    const base = buildCameraBaseFromVideoUrl();
+    if (!base || typeof fetch !== "function") {
+      return;
+    }
+
+    setSnapshotUploadStatus("uploading", "上传中...");
+
+    let host = SNAPSHOT_DEFAULT_HOST;
+    let port = SNAPSHOT_DEFAULT_PORT;
+
+    try {
+      const routerBase = getRouterBase();
+      const u = new URL(routerBase);
+      if (u.hostname) {
+        host = u.hostname;
+      }
+      if (u.port) {
+        const p = parseInt(u.port, 10);
+        if (!Number.isNaN(p) && p > 0 && p < 65536) {
+          port = p;
+        }
+      }
+    } catch (e) {
+    }
+
+    const params = new URLSearchParams();
+    params.set("host", host);
+    params.set("port", String(port));
+    params.set("path", "/upload_snapshot");
+
+    const url = `${base}/snapshot_to_router?${params.toString()}`;
+
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        mode: "cors",
+      });
+      if (!resp.ok) {
+        setSnapshotUploadStatus("error", `上传失败(${resp.status})`);
+        return;
+      }
+      let data = null;
+      try {
+        data = await resp.json();
+      } catch (e) {
+      }
+      if (data && data.ok && typeof data.bytes === "number") {
+        setSnapshotUploadStatus("ok", `已上传 (${data.bytes}B)`);
+      } else {
+        setSnapshotUploadStatus("ok", "已上传");
+      }
+    } catch (e) {
+      setSnapshotUploadStatus("error", "上传失败");
+    }
   }
 
   const keyToButton = {
@@ -1316,7 +1403,7 @@
       });
     }
 
-    // 拍照按钮：根据视频流地址推导 ESP32-CAM 的 /capture 地址
+    // 拍照按钮：根据视频流地址推导 ESP32-CAM 的 /capture 地址，并触发上传到路由器
     if (snapshotBtn) {
       snapshotBtn.addEventListener("click", () => {
         const url = videoUrlInput.value.trim();
@@ -1345,6 +1432,8 @@
         if (snapshotThumb) {
           snapshotThumb.src = tsUrl;
         }
+
+        triggerSnapshotToRouter();
       });
     }
 

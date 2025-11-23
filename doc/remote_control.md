@@ -554,24 +554,45 @@ docker run -d \
   - 将仓库中的 `web/` 内容同步到容器内的 `/usr/share/nginx/html` 与 `/var/www/html`；
   - 调用 `nginx -s reload` 重载 Nginx 配置与静态文件。
 
-从用户视角看，后续更新流程非常简单：
+  从用户视角看，后续更新流程非常简单：
+  
+  1. 在本地修改 `web/` 目录中的 HTML/CSS/JS；
+  2. 提交并推送到 GitHub：
+  
+  ```bash
+  git commit -am "update web ui"
+  git push
+  ```
+  
+  3. 等待 GitHub Actions 中对应 workflow 运行完成；
+  4. 在浏览器访问 `http://<路由器IP>:8090/`，即可看到最新版本的 Web 控制面板（建议使用 Ctrl+F5 强制刷新缓存）。
 
-1. 在本地修改 `web/` 目录中的 HTML/CSS/JS；
-2. 提交并推送到 GitHub：
+### 6.4 ESP32-CAM 抓拍上传到 iStoreOS 路由器（Docker runner）
 
-   ```bash
-   git commit -am "update web ui"
-   git push
-   ```
+在 Docker runner 场景下，ESP32-CAM 除了向浏览器提供视频流之外，还可以直接把单帧抓拍的 JPEG 通过 HTTP 上传到路由器上的 `smallcar-runner-web` 容器中，由 Nginx 提供历史快照浏览：
 
-3. 等待 GitHub Actions 中对应 workflow 运行完成；
-4. 在浏览器访问 `http://<路由器IP>:8090/`，即可看到最新版本的 Web 控制面板（建议使用 Ctrl+F5 强制刷新缓存）。
+```text
+浏览器（点击拍照按钮）
+  ↓
+ESP32-CAM: POST /snapshot_to_router
+  ↓  (HTTP POST image/jpeg)
+路由器: http://<路由器IP>:PORT/upload_snapshot (Nginx 反代)
+  ↓
+Python snapshot_app.py （保存到 /usr/share/nginx/html/snapshots/*.jpg）
+  ↓
+浏览器访问 http://<路由器IP>:PORT/snapshots/ 查看历史图片
+```
 
-## 7. ESP32-CAM OTA 固件升级文档索引
+> 说明：下文默认 Nginx 对外端口为 `8099`，与 `web/index.html` 中“固件服务器”输入框默认值 `http://192.168.31.1:8099` 一致。如果你用手工 `docker run -p 8090:80` 等方式运行容器，请相应修改 Web 端的“固件服务器”地址以及下文示例中的端口。
 
-本文件主要聚焦于“浏览器 ⇄ ESP32-CAM ⇄ STM32” 的远程控制链路与 UART 协议，实现细节在 `esp32_cam/CameraWebServer` 代码中。
+#### 6.4.1 ESP32-CAM `/snapshot_to_router` 接口
 
-关于 **ESP32-CAM 固件 OTA 升级** 的设计、实现和故障排查，请参考：
+- **方法与路径**：
+  - `POST http://<ESP32_IP>/snapshot_to_router`
+- **查询参数**（全部可选，未提供时使用固件内置默认值）：
+  - `host`：路由器 IP 或主机名，默认 `192.168.31.1`；
+  - `port`：路由器上 Nginx 的 HTTP 端口，默认 `8099`；
+  - `path`：路由器侧上传接口路径，默认 `/upload_snapshot`。
 
 - `esp32_cam_ota.md`：ESP32-CAM OTA 分区布局、`/ota` HTTP 接口、NVS 诊断与 Web 端使用方法；
 - `esp32_cam_ota_troubleshooting.md`：烧录后第二次 OTA 失败（`TG1WDT_SYS_RESET`）的详细定位与解决过程，从分区/回滚/看门狗原理到具体工程实践都有完整记录。
