@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include <Arduino.h>
+#include <WiFi.h>
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "esp_camera.h"
@@ -63,6 +64,10 @@ static int64_t s_ota_last_ts = 0;
 #define OTA_NVS_KEY_SIZE   "size"
 #define OTA_NVS_KEY_TS     "ts"
 #define OTA_NVS_KEY_PREERASE "preerase"
+
+#define SNAPSHOT_ROUTER_DEFAULT_HOST "192.168.31.1"
+#define SNAPSHOT_ROUTER_DEFAULT_PORT 8099
+#define SNAPSHOT_ROUTER_DEFAULT_PATH "/upload_snapshot"
 
 static void ota_diag_load_from_nvs(void) {
   nvs_handle_t h;
@@ -430,6 +435,109 @@ static esp_err_t capture_handler(httpd_req_t *req) {
 #endif
   log_i("JPG: %uB %ums", (uint32_t)(fb_len), (uint32_t)((fr_end - fr_start) / 1000));
   return res;
+}
+
+static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
+  camera_fb_t *fb = esp_camera_fb_get();
+  if (!fb) {
+    log_e("snapshot_to_router: camera capture failed");
+    httpd_resp_send_500(req);
+    return ESP_FAIL;
+  }
+
+  char router_host[64];
+  snprintf(router_host, sizeof(router_host), "%s", SNAPSHOT_ROUTER_DEFAULT_HOST);
+  int router_port = SNAPSHOT_ROUTER_DEFAULT_PORT;
+  char router_path[128];
+  snprintf(router_path, sizeof(router_path), "%s", SNAPSHOT_ROUTER_DEFAULT_PATH);
+
+  size_t qlen = httpd_req_get_url_query_len(req);
+  if (qlen > 0) {
+    char *query = (char *)malloc(qlen + 1);
+    if (query) {
+      if (httpd_req_get_url_query_str(req, query, qlen + 1) == ESP_OK) {
+        char value[96];
+        if (httpd_query_key_value(query, "host", value, sizeof(value)) == ESP_OK) {
+          snprintf(router_host, sizeof(router_host), "%s", value);
+        }
+        if (httpd_query_key_value(query, "port", value, sizeof(value)) == ESP_OK) {
+          int p = atoi(value);
+          if (p > 0 && p < 65536) {
+            router_port = p;
+          }
+        }
+        if (httpd_query_key_value(query, "path", value, sizeof(value)) == ESP_OK) {
+          if (value[0] != '\0') {
+            snprintf(router_path, sizeof(router_path), "%s", value);
+          }
+        }
+      }
+      free(query);
+    }
+  }
+
+  WiFiClient client;
+  if (!client.connect(router_host, router_port)) {
+    log_e("snapshot_to_router: connect to %s:%d failed", router_host, router_port);
+    esp_camera_fb_return(fb);
+    httpd_resp_send_500(req);
+    return ESP_FAIL;
+  }
+
+  client.printf("POST %s HTTP/1.1\r\n", router_path);
+  client.printf("Host: %s:%d\r\n", router_host, router_port);
+  client.print("Content-Type: image/jpeg\r\n");
+  client.printf("Content-Length: %u\r\n", (unsigned int)fb->len);
+  client.print("Connection: close\r\n");
+  client.print("\r\n");
+
+  size_t written = 0;
+  const uint8_t *buf = fb->buf;
+  size_t len = fb->len;
+  while (written < len) {
+    size_t w = client.write(buf + written, len - written);
+    if (w == 0) {
+      break;
+    }
+    written += w;
+  }
+
+  esp_camera_fb_return(fb);
+
+  if (written != len) {
+    log_e("snapshot_to_router: short write %u/%u", (unsigned int)written, (unsigned int)len);
+    client.stop();
+    httpd_resp_send_500(req);
+    return ESP_FAIL;
+  }
+
+  uint32_t start = millis();
+  while (client.connected() && (millis() - start) < 2000) {
+    while (client.available()) {
+      (void)client.read();
+    }
+    delay(10);
+  }
+  client.stop();
+
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_type(req, "application/json");
+  char resp[160];
+  int n = snprintf(
+    resp,
+    sizeof(resp),
+    "{\"ok\":true,\"host\":\"%s\",\"port\":%d,\"path\":\"%s\",\"bytes\":%u}",
+    router_host,
+    router_port,
+    router_path,
+    (unsigned int)written
+  );
+  if (n < 0 || n >= (int)sizeof(resp)) {
+    httpd_resp_send(req, "{\"ok\":true}", strlen("{\"ok\":true}"));
+  } else {
+    httpd_resp_send(req, resp, n);
+  }
+  return ESP_OK;
 }
 
 static esp_err_t stream_handler(httpd_req_t *req) {
@@ -1013,6 +1121,19 @@ void startCameraServer() {
 #endif
   };
 
+  httpd_uri_t snapshot_to_router_uri = {
+    .uri = "/snapshot_to_router",
+    .method = HTTP_POST,
+    .handler = snapshot_to_router_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
   httpd_uri_t ota_options_uri = {
     .uri = "/ota",
     .method = HTTP_OPTIONS,
@@ -1177,6 +1298,7 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &cmd_uri);
     httpd_register_uri_handler(camera_httpd, &status_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
+    httpd_register_uri_handler(camera_httpd, &snapshot_to_router_uri);
     httpd_register_uri_handler(camera_httpd, &bmp_uri);
 
     httpd_register_uri_handler(camera_httpd, &ota_options_uri);
