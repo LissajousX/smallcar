@@ -9,10 +9,14 @@ RUN apt-get update && \
       git \
       nginx \
       jq \
+      tzdata \
       python3 \
       python3-pip \
     && pip3 install -U platformio \
     && rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Asia/Shanghai
+RUN ln -fs /usr/share/zoneinfo/$TZ /etc/localtime
 
 WORKDIR /actions-runner
 
