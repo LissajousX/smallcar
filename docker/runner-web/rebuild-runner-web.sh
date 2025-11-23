@@ -16,15 +16,26 @@ HOST_RUNNER_DIR="/mnt/sata5-4/dockerdisk/smallcar/actions-runner" # 映射到容
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-NGINX_CONF_HOST_PATH="${REPO_ROOT}/docker/runner-web/nginx.conf"
+# 源 nginx.conf（随仓库版本控制）
+SOURCE_NGINX_CONF="${REPO_ROOT}/docker/runner-web/nginx.conf"
+
+# 持久化 nginx.conf 的位置（即便仓库目录被删除，容器仍可使用这份配置）
+PERSIST_BASE="/mnt/sata5-4/dockerdisk/smallcar"
+HOST_NGINX_CONF_DIR="${PERSIST_BASE}/nginx"
+HOST_NGINX_CONF="${HOST_NGINX_CONF_DIR}/nginx.conf"
 NGINX_CONF_CONTAINER_PATH="/etc/nginx/nginx.conf"
 
 echo "[INFO] Repo root: ${REPO_ROOT}"
 
-if [ ! -f "${NGINX_CONF_HOST_PATH}" ]; then
-  echo "[ERROR] 未找到 nginx 配置文件: ${NGINX_CONF_HOST_PATH}" >&2
+if [ ! -f "${SOURCE_NGINX_CONF}" ]; then
+  echo "[ERROR] 未找到 nginx 配置文件: ${SOURCE_NGINX_CONF}" >&2
   exit 1
 fi
+
+# 确保持久化 nginx 配置目录存在，并将当前仓库中的 nginx.conf 拷贝过去
+mkdir -p "${HOST_NGINX_CONF_DIR}"
+cp "${SOURCE_NGINX_CONF}" "${HOST_NGINX_CONF}"
+echo "[INFO] nginx.conf 已同步到持久化路径: ${HOST_NGINX_CONF}"
 
 # 停止并删除旧容器（如存在）
 if docker ps -a --format '{{.Names}}' | grep -w "${CONTAINER_NAME}" >/dev/null 2>&1; then
@@ -50,7 +61,7 @@ docker run -d \
   -p "${HOST_PORT}:80" \
   -v "${HOST_WEBROOT}:/usr/share/nginx/html" \
   -v "${HOST_RUNNER_DIR}:/actions-runner" \
-  -v "${NGINX_CONF_HOST_PATH}:${NGINX_CONF_CONTAINER_PATH}:ro" \
+  -v "${HOST_NGINX_CONF}:${NGINX_CONF_CONTAINER_PATH}:ro" \
   "${IMAGE_NAME}"
 
 # 清理旧的悬空镜像（不再被任何容器引用的镜像）
