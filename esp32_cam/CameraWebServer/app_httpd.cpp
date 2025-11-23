@@ -223,6 +223,10 @@ static esp_err_t bmp_handler(httpd_req_t *req) {
 static esp_err_t ota_post_handler(httpd_req_t *req) {
   esp_err_t err;
 
+  // 标记一次新的 OTA 开始，先清零本次计数，方便在异常重启时也能看到 OTA 已经触发过
+  s_ota_last_size = 0;
+  ota_diag_save_to_nvs(0, 0, 0);
+
   const esp_partition_t *update_partition = esp_ota_get_next_update_partition(NULL);
   if (!update_partition) {
     log_e("OTA: no valid update partition");
@@ -258,6 +262,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     return httpd_resp_send_500(req);
   }
 
+  int progress_counter = 0;
   while (remaining > 0) {
     int to_read = remaining > (int)buf_size ? (int)buf_size : remaining;
     int recv_len = httpd_req_recv(req, (char *)buf, to_read);
@@ -280,6 +285,13 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
 
     s_ota_last_size += recv_len;
     remaining -= recv_len;
+
+    // 每接收 100KB 更新一次进度到 NVS，方便排查卡在哪个阶段
+    progress_counter += recv_len;
+    if (progress_counter >= 102400) {
+      ota_diag_save_to_nvs(0, 0, s_ota_last_size);  // result=0 表示进行中
+      progress_counter = 0;
+    }
   }
 
   free(buf);
@@ -921,6 +933,9 @@ static esp_err_t index_handler(httpd_req_t *req) {
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 16;
+  // 增加接收超时时间，防止 OTA 大文件传输时超时（默认 10 秒太短）
+  config.recv_wait_timeout = 60;  // 60 秒
+  config.send_wait_timeout = 60;  // 60 秒
 
   // 从 NVS 恢复上一次 OTA 结果，这样即使设备在 OTA 后重启，/status 也能看到最新一次 OTA 的诊断信息
   ota_diag_load_from_nvs();
