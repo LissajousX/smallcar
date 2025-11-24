@@ -11,6 +11,7 @@ HOST_PORT="8099"   # 对外暴露的端口，前端默认使用 8099，如有不
 # 持久化挂载目录（放在大容量磁盘 /mnt/sata5-4 上）
 HOST_WEBROOT="/mnt/sata5-4/dockerdisk/smallcar/webroot"           # 映射到容器内 /usr/share/nginx/html
 HOST_RUNNER_DIR="/mnt/sata5-4/dockerdisk/smallcar/actions-runner" # 映射到容器内 /actions-runner
+HOST_NGINX_LOG_DIR="/mnt/sata5-4/dockerdisk/smallcar/nginx-logs"  # 映射到容器内 /var/log/nginx，用于持久化访问/错误日志
 
 # 计算仓库根目录（本脚本位于 docker/runner-web/ 下）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -46,7 +47,7 @@ if docker ps -a --format '{{.Names}}' | grep -w "${CONTAINER_NAME}" >/dev/null 2
 fi
 
 # 确保宿主机挂载目录存在
-mkdir -p "${HOST_WEBROOT}" "${HOST_RUNNER_DIR}"
+mkdir -p "${HOST_WEBROOT}" "${HOST_RUNNER_DIR}" "${HOST_NGINX_LOG_DIR}"
 
 # 构建新镜像
 cd "${REPO_ROOT}"
@@ -61,6 +62,7 @@ docker run -d \
   -p "${HOST_PORT}:80" \
   -v "${HOST_WEBROOT}:/usr/share/nginx/html" \
   -v "${HOST_RUNNER_DIR}:/actions-runner" \
+  -v "${HOST_NGINX_LOG_DIR}:/var/log/nginx" \
   -v "${HOST_NGINX_CONF}:${NGINX_CONF_CONTAINER_PATH}:ro" \
   "${IMAGE_NAME}"
 
