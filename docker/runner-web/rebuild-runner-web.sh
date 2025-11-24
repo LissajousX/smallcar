@@ -64,13 +64,13 @@ echo "[INFO] Starting new container ${CONTAINER_NAME} on host port ${HOST_PORT}.
 docker run -d \
   --name "${CONTAINER_NAME}" \
   --restart unless-stopped \
-  -p "${HOST_PORT}:80" \
+  -p "${HOST_PORT}:8080" \
   -v "${HOST_WEBROOT}:/usr/share/nginx/html" \
   -v "${HOST_RUNNER_DIR}:/actions-runner" \
   -v "${HOST_NGINX_LOG_DIR}:/var/log/nginx" \
   -v "${HOST_CAMERA_LOG_DIR}:/var/log/camera" \
   -v "${HOST_DATA_DIR}:/data" \
-  -v "${HOST_NGINX_CONF}:${NGINX_CONF_CONTAINER_PATH}:ro" \
+  -v "${HOST_NGINX_CONF}:${NGINX_CONF_CONTAINER_PATH}:rw" \
   "${IMAGE_NAME}"
 
 # 清理旧的悬空镜像（不再被任何容器引用的镜像）

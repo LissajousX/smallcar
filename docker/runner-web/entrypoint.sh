@@ -27,8 +27,12 @@ if [ -d /var/log ]; then
   chown -R runner:runner /var/log
 fi
 
+if [ -f /etc/nginx/nginx.conf ]; then
+  chown runner:runner /etc/nginx/nginx.conf
+fi
+
 # 启动 nginx（后台守护进程）
-/usr/sbin/nginx
+su runner -c "/usr/sbin/nginx"
 
 EXT_DIR="/actions-runner/extensions.d"
 

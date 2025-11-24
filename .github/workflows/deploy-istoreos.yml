@@ -84,8 +84,19 @@ jobs:
             cp -a web/. /var/www/html/
           fi
 
+          NGINX_CONF_SRC="docker/runner-web/nginx.conf"
+          NGINX_CONF_DST="/etc/nginx/nginx.conf"
+          if [ -f "$NGINX_CONF_SRC" ]; then
+            cp "$NGINX_CONF_SRC" "$NGINX_CONF_DST"
+          fi
+
           # 重载 nginx（如果已经在运行）
-          nginx -s reload || true
+          if /usr/sbin/nginx -t; then
+            /usr/sbin/nginx -s reload
+          else
+            echo "nginx config test failed" >&2
+            exit 1
+          fi
 
       - name: Deploy camera snapshot upload service into persistent runner dir
         if: steps.snapshot_changes.outputs.changed == 'true'
