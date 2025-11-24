@@ -335,6 +335,10 @@ button.danger:hover {
   color: #e5e7eb;
   font-size: 14px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60; /* 保证关闭按钮始终在弹窗内容之上，点击区域在最上层 */
 }
 
 .snapshot-modal-hint {
