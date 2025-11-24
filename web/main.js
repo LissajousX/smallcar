@@ -133,6 +133,7 @@
   let ws = null;
   let sendTimer = null;
   let videoActive = false; // 当前是否在播放流（router_stream）
+  let videoPaused = false; // 当前是否处于“暂停”状态（画面冻结）
   let videoRecording = false; // 当前是否在录像中（router 侧）
   let videoRecordStartTime = null;
   let videoRecordTimerId = null;
@@ -1700,6 +1701,7 @@
 
       videoView.src = VIDEO_PLACEHOLDER;
       videoActive = false;
+      videoPaused = false;
       videoLoadBtn.textContent = "加载";
       if (videoPlayOverlay) {
         videoPlayOverlay.classList.remove("hidden");
@@ -1747,6 +1749,7 @@
       // 使用路由器统一推流的地址
       videoView.src = `${routerBase}/router_stream?t=${Date.now()}`;
       videoActive = true;
+      videoPaused = false;
       videoLoadBtn.textContent = "停止";
       if (videoPlayOverlay) {
         videoPlayOverlay.classList.add("hidden");
@@ -1760,12 +1763,34 @@
     };
 
     const pauseVideo = async () => {
-      // 这里的暂停等价于停止 router_stream，只保留占位图
-      await stopVideo();
+      const routerBase = getRouterBase();
+      if (routerBase && typeof fetch === "function") {
+        try {
+          await fetch(`${routerBase}/stop_stream`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            mode: "cors",
+          }).catch(() => {});
+        } catch (e) {}
+      }
+
+      videoActive = false;
+      videoPaused = true;
+      videoLoadBtn.textContent = "加载";
+      if (videoPlayOverlay) {
+        videoPlayOverlay.classList.remove("hidden");
+      }
+      if (videoPlayToggle) {
+        videoPlayToggle.classList.remove("playing");
+      }
+      // 不修改 videoView.src，这样可以保留最后一帧作为暂停画面
     };
 
-    // 如果加载失败，回退到占位图
+    // 如果加载失败，回退到占位图；但在手动暂停场景下忽略错误
     videoView.addEventListener("error", () => {
+      if (videoPaused) {
+        return;
+      }
       stopVideo();
     });
 

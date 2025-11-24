@@ -220,6 +220,8 @@ class StreamManager:
                 "-y",
                 "-f",
                 "mjpeg",
+                "-framerate",
+                "10",
                 "-i",
                 "-",
                 "-an",
