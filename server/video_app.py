@@ -189,8 +189,18 @@ class StreamManager:
         return q
 
     def remove_client(self, q: queue.Queue) -> None:
+        auto_stop = False
         with self.lock:
             self.clients.discard(q)
+            if not self.clients and self.recording:
+                auto_stop = True
+
+        if auto_stop:
+            threading.Thread(
+                target=self._auto_stop_recording_due_to_no_clients,
+                name="AutoStopRecordingNoClients",
+                daemon=True,
+            ).start()
 
     # 录制生命周期：start/stop 在 HTTP handler 线程调用
 
@@ -329,6 +339,15 @@ class StreamManager:
             "bytes": video_size,
             "duration": duration,
         }
+
+    def _auto_stop_recording_due_to_no_clients(self) -> None:
+        try:
+            result = self.stop_recording()
+            logging.info("auto-stopped recording because no clients are connected: %s", result)
+        except RecordingError as exc:
+            logging.warning("auto-stop recording failed: %s", exc)
+        except Exception:
+            logging.exception("unexpected error during auto-stop recording")
 
     # ---------- 内部实现 ----------
 
