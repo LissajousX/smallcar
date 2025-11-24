@@ -71,25 +71,29 @@ jobs:
       - name: Deploy snapshot upload service into persistent runner dir
         run: |
           set -e
-          SRC="server/snapshot_app.py"
-          DEST_DIR="/actions-runner/snapshot_server"
+          SNAPSHOT_SRC="server/snapshot_app.py"
+          STARTER_SRC="server/snapshot_start.sh"
+          SNAPSHOT_DEST_DIR="/actions-runner/snapshot_server"
+          EXT_DIR="/actions-runner/extensions.d"
 
-          if [ ! -f "$SRC" ]; then
+          if [ ! -f "$SNAPSHOT_SRC" ]; then
             echo "snapshot_app.py not present in repo; skip deploy."
             exit 0
           fi
 
-          mkdir -p "$DEST_DIR"
-          cp "$SRC" "$DEST_DIR/snapshot_app.py"
-          chmod 755 "$DEST_DIR/snapshot_app.py"
+          mkdir -p "$SNAPSHOT_DEST_DIR"
+          cp "$SNAPSHOT_SRC" "$SNAPSHOT_DEST_DIR/snapshot_app.py"
+          chmod 755 "$SNAPSHOT_DEST_DIR/snapshot_app.py"
 
-          PIDS="$(ps -eo pid,cmd | grep snapshot_app.py | grep -v grep | awk '{print $1}')"
-          if [ -n "$PIDS" ]; then
-            echo "Killing existing snapshot_app.py processes: $PIDS"
-            kill $PIDS || true
+          if [ -f "$STARTER_SRC" ]; then
+            mkdir -p "$EXT_DIR"
+            cp "$STARTER_SRC" "$EXT_DIR/snapshot_start.sh"
+            chmod 755 "$EXT_DIR/snapshot_start.sh"
+            echo "Running snapshot_start.sh to (re)start snapshot service..."
+            "$EXT_DIR/snapshot_start.sh"
+          else
+            echo "snapshot_start.sh not found in repo; snapshot service will rely on existing processes or entrypoint extensions.d."
           fi
-
-          nohup python3 "$DEST_DIR/snapshot_app.py" --host 127.0.0.1 --port 5001 >> "$DEST_DIR/snapshot_app.log" 2>&1 &
 
       - name: Copy firmware .bin into Nginx document roots
         if: steps.esp32_changes.outputs.changed == 'true'

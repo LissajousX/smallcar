@@ -22,11 +22,15 @@ done
 # 启动 nginx（后台守护进程）
 /usr/sbin/nginx
 
-SNAPSHOT_SERVER_DIR="/actions-runner/snapshot_server"
-SNAPSHOT_APP="${SNAPSHOT_SERVER_DIR}/snapshot_app.py"
+EXT_DIR="/actions-runner/extensions.d"
 
-if [ -f "$SNAPSHOT_APP" ]; then
-  su runner -c "python3 $SNAPSHOT_APP --host 127.0.0.1 --port 5001" &
+if [ -d "$EXT_DIR" ]; then
+  for f in "$EXT_DIR"/*; do
+    if [ -f "$f" ] && [ -x "$f" ]; then
+      echo "[INFO] Starting extension: $f"
+      su runner -c "$f" &
+    fi
+  done
 fi
 
 cd /actions-runner
