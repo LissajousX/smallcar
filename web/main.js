@@ -528,6 +528,7 @@
   }
 
   let snapshotHealthTimer = null;
+  let videoHealthTimer = null;
 
   function startSnapshotHealthPolling() {
     if (typeof fetch !== "function") {
@@ -568,6 +569,47 @@
       clearInterval(snapshotHealthTimer);
     }
     snapshotHealthTimer = setInterval(poll, 15000);
+  }
+
+  function startVideoHealthPolling() {
+    if (typeof fetch !== "function") {
+      return;
+    }
+
+    const poll = async () => {
+      const routerBase = getRouterBase();
+      if (!routerBase) {
+        return;
+      }
+      try {
+        const resp = await fetch(`${routerBase}/video_health?t=${Date.now()}`, {
+          mode: "cors",
+          cache: "no-store",
+        });
+        if (!resp.ok) {
+          setVideoHealthStatus("error", `视频服务异常(${resp.status})`);
+          return;
+        }
+        let data = null;
+        try {
+          data = await resp.json();
+        } catch (e) {
+        }
+        if (data && data.ok) {
+          setVideoHealthStatus("ok", "视频服务正常");
+        } else {
+          setVideoHealthStatus("error", "视频服务返回异常");
+        }
+      } catch (e) {
+        setVideoHealthStatus("error", "无法连接视频服务");
+      }
+    };
+
+    poll();
+    if (videoHealthTimer) {
+      clearInterval(videoHealthTimer);
+    }
+    videoHealthTimer = setInterval(poll, 15000);
   }
 
   async function triggerSnapshotToRouter() {
@@ -1913,7 +1955,7 @@
     updateLightSliderSize();
     loadCameraStatus();
     startSnapshotHealthPolling();
-    setVideoHealthStatus("unknown", "视频服务状态未知");
+    startVideoHealthPolling();
   });
   window.addEventListener("orientationchange", () => {
     scrollVideoIntoViewIfLandscape();

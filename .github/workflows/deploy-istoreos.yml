@@ -139,13 +139,22 @@ jobs:
             mkdir -p "$EXT_DIR"
             cp "$STARTER_SRC" "$EXT_DIR/snapshot_start.sh"
             chmod 755 "$EXT_DIR/snapshot_start.sh"
-            echo "Ensuring camera snapshot service picks up latest code (if supervisor is running)..."
-            PIDS="$(ps -eo pid,cmd | grep "python3 /actions-runner/camera/snapshot_app.py" | grep -v grep | awk '{print $1}')"
-            if [ -n "$PIDS" ]; then
-              echo "Killing existing snapshot_app.py processes: $PIDS"
-              kill $PIDS || true
+            echo "Ensuring camera snapshot service picks up latest code..."
+            APP_PIDS="$(ps -eo pid,cmd | grep "python3 /actions-runner/camera/snapshot_app.py" | grep -v grep | awk '{print $1}')"
+            SUP_PIDS="$(ps -eo pid,cmd | grep "/actions-runner/extensions.d/snapshot_start.sh" | grep -v grep | awk '{print $1}')"
+
+            if [ -n "$APP_PIDS" ]; then
+              echo "Killing existing snapshot_app.py processes: $APP_PIDS"
+              kill $APP_PIDS || true
             else
-              echo "No running snapshot_app.py processes found; it will be started by extensions.d on next container start."
+              echo "No running snapshot_app.py processes found."
+            fi
+
+            if [ -z "$SUP_PIDS" ]; then
+              echo "No snapshot supervisor running; starting one via su runner -c ..."
+              su runner -c "$EXT_DIR/snapshot_start.sh" &
+            else
+              echo "Snapshot supervisor already running: $SUP_PIDS"
             fi
           else
             echo "snapshot_start.sh not found in repo; snapshot service will rely on existing processes or entrypoint extensions.d."
@@ -173,17 +182,52 @@ jobs:
             mkdir -p "$EXT_DIR"
             cp "$STARTER_SRC" "$EXT_DIR/video_start.sh"
             chmod 755 "$EXT_DIR/video_start.sh"
-            echo "Ensuring camera video service picks up latest code (if supervisor is running)..."
-            PIDS="$(ps -eo pid,cmd | grep "python3 /actions-runner/camera/video_app.py" | grep -v grep | awk '{print $1}')"
-            if [ -n "$PIDS" ]; then
-              echo "Killing existing video_app.py processes: $PIDS"
-              kill $PIDS || true
+            echo "Ensuring camera video service picks up latest code..."
+            APP_PIDS="$(ps -eo pid,cmd | grep "python3 /actions-runner/camera/video_app.py" | grep -v grep | awk '{print $1}')"
+            SUP_PIDS="$(ps -eo pid,cmd | grep "/actions-runner/extensions.d/video_start.sh" | grep -v grep | awk '{print $1}')"
+
+            if [ -n "$APP_PIDS" ]; then
+              echo "Killing existing video_app.py processes: $APP_PIDS"
+              kill $APP_PIDS || true
             else
-              echo "No running video_app.py processes found; it will be started by extensions.d on next container start."
+              echo "No running video_app.py processes found."
+            fi
+
+            if [ -z "$SUP_PIDS" ]; then
+              echo "No video supervisor running; starting one via su runner -c ..."
+              su runner -c "$EXT_DIR/video_start.sh" &
+            else
+              echo "Video supervisor already running: $SUP_PIDS"
             fi
           else
             echo "video_start.sh not found in repo; video service will rely on existing processes or entrypoint extensions.d."
           fi
+
+      - name: Verify camera services health
+        run: |
+          set -e
+          BASE_URL="http://127.0.0.1:8080"
+
+          check_endpoint() {
+            local url="$1"
+            local name="$2"
+            local retries=10
+            local delay=2
+            local i
+            for i in $(seq 1 "$retries"); do
+              if curl -fsS "$url" >/dev/null 2>&1; then
+                echo "$name is healthy: $url"
+                return 0
+              fi
+              echo "$name not ready yet (try $i/$retries), sleeping $delay seconds..."
+              sleep "$delay"
+            done
+            echo "$name failed health check after $retries attempts: $url" >&2
+            return 1
+          }
+
+          check_endpoint "$BASE_URL/snapshot_health" "snapshot"
+          check_endpoint "$BASE_URL/video_health" "video"
 
       - name: Copy firmware .bin into Nginx document roots
         if: steps.esp32_changes.outputs.changed == 'true'
