@@ -31,6 +31,15 @@ jobs:
             exit 0
           fi
 
+          # 仅当 snapshot_app.py 或 snapshot_start.sh 有变更时才重新部署/重启服务
+          if git diff --quiet HEAD^ HEAD -- server/snapshot_app.py server/snapshot_start.sh; then
+            echo "Snapshot service scripts unchanged; skip snapshot deploy." >&2
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Snapshot service scripts changed; will deploy." >&2
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Detect video service changes
         id: video_changes
         run: |
@@ -47,15 +56,6 @@ jobs:
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
             echo "Video service scripts changed; will deploy." >&2
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-          # 仅当 snapshot_app.py 或 snapshot_start.sh 有变更时才重新部署/重启服务
-          if git diff --quiet HEAD^ HEAD -- server/snapshot_app.py server/snapshot_start.sh; then
-            echo "Snapshot service scripts unchanged; skip snapshot deploy." >&2
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Snapshot service scripts changed; will deploy." >&2
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
