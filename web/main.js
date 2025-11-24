@@ -112,6 +112,8 @@
   const videoPlayBtn = document.getElementById("video-play-btn");
   const videoPlayControls = document.getElementById("video-play-controls");
   const videoPlayToggle = document.getElementById("video-play-toggle");
+  const videoBox = document.querySelector(".panel-video .video-box");
+  const videoRecordTimer = document.getElementById("video-record-timer");
 
   const statusThrottle = document.getElementById("status-throttle");
   const statusSteer = document.getElementById("status-steer");
@@ -131,6 +133,8 @@
   let sendTimer = null;
   let videoActive = false; // 当前是否在播放流（router_stream）
   let videoRecording = false; // 当前是否在录像中（router 侧）
+  let videoRecordStartTime = null;
+  let videoRecordTimerId = null;
   let lightOn = false; // 补光灯当前状态
   let lightLevel = 125; // 补光灯亮度（0-255），默认 125
 
@@ -1525,6 +1529,27 @@
 
   // 视频预览加载 / 停止 按钮（单键切换）+ 拍照 + 补光灯
   if (videoLoadBtn && videoUrlInput && videoView) {
+    function updateVideoRecordTimer() {
+      if (!videoRecordStartTime || !videoRecording || !videoRecordTimer) {
+        if (videoRecordTimer) {
+          videoRecordTimer.classList.remove("visible");
+          videoRecordTimer.textContent = "";
+        }
+        if (videoRecordTimerId) {
+          clearInterval(videoRecordTimerId);
+          videoRecordTimerId = null;
+        }
+        return;
+      }
+
+      const elapsedSec = Math.floor((Date.now() - videoRecordStartTime) / 1000);
+      const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+      const ss = String(elapsedSec % 60).padStart(2, "0");
+
+      videoRecordTimer.textContent = `REC ${mm}:${ss}`;
+      videoRecordTimer.classList.add("visible");
+    }
+
     async function stopRecordingIfNeeded(options = { showError: false }) {
       if (!videoRecording) {
         return;
@@ -1579,6 +1604,18 @@
         videoRecording = false;
         if (recordBtn) {
           recordBtn.classList.remove("recording");
+        }
+        if (videoBox) {
+          videoBox.classList.remove("recording");
+        }
+        videoRecordStartTime = null;
+        if (videoRecordTimer) {
+          videoRecordTimer.classList.remove("visible");
+          videoRecordTimer.textContent = "";
+        }
+        if (videoRecordTimerId) {
+          clearInterval(videoRecordTimerId);
+          videoRecordTimerId = null;
         }
       }
     }
@@ -1775,45 +1812,19 @@
 
           videoRecording = true;
           recordBtn.classList.add("recording");
+          if (videoBox) {
+            videoBox.classList.add("recording");
+          }
+          videoRecordStartTime = Date.now();
+          if (videoRecordTimerId) {
+            clearInterval(videoRecordTimerId);
+          }
+          updateVideoRecordTimer();
+          videoRecordTimerId = setInterval(updateVideoRecordTimer, 1000);
           setSnapshotUploadStatus("uploading", "视频录制中...");
         } else {
           // 停止录像
-          try {
-            const resp = await fetch(`${routerBase}/record_stop`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              mode: "cors",
-              body: JSON.stringify({}),
-            });
-            if (!resp.ok) {
-              alert(`停止录像失败 (${resp.status})`);
-              return;
-            }
-            let data = null;
-            try {
-              data = await resp.json();
-            } catch (e) {}
-
-            if (data && data.ok && data.video && data.thumb) {
-              lastMedia.type = "video";
-              lastMedia.videoUrl = data.video;
-              lastMedia.thumbUrl = data.thumb;
-
-              if (snapshotThumb) {
-                snapshotThumb.src = data.thumb;
-              }
-
-              setSnapshotUploadStatus("ok", "视频录制完成");
-            } else {
-              setSnapshotUploadStatus("error", "视频录制结果异常");
-            }
-          } catch (e) {
-            setSnapshotUploadStatus("error", "停止录像时网络异常");
-            return;
-          } finally {
-            videoRecording = false;
-            recordBtn.classList.remove("recording");
-          }
+          await stopRecordingIfNeeded({ showError: true });
         }
       });
     }

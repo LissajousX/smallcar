@@ -484,10 +484,57 @@ button.danger:hover {
   position: relative;
   width: 100%;
   padding-top: 56.25%; /* 16:9 比例占位 */
+  border-radius: 10px;
   background: #020617;
-  border-radius: 6px;
+  box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.0), 0 10px 25px rgba(15, 23, 42, 0.9);
   border: 1px solid #1f2937;
   overflow: hidden;
+}
+
+.video-record-timer {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(248, 113, 113, 0.9);
+  color: #fecaca;
+  font-size: 12px;
+  line-height: 1.2;
+  display: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.video-record-timer.visible {
+  display: inline-flex;
+}
+
+.video-record-timer::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+}
+
+.panel-video .video-box.recording {
+  animation: video-recording-flash 1s ease-in-out infinite;
+}
+
+@keyframes video-recording-flash {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(248, 113, 113, 0.0),
+      0 10px 25px rgba(15, 23, 42, 0.9);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(248, 113, 113, 0.7),
+      0 10px 25px rgba(15, 23, 42, 0.9);
+  }
 }
 
 .panel-video .video-box img,
@@ -770,8 +817,8 @@ button.danger:hover {
 
 /* 录像进行中：中间红点变成小方块 */
 .video-tool-btn.recording .record-icon::after {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 2px;
 }
 
