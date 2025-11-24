@@ -1872,27 +1872,29 @@
       });
     }
 
-    // 视频预览遮罩点击关闭
-    if (videoModal && videoModalPlayer) {
-      videoModal.addEventListener("click", (e) => {
-        if (e.target === videoModal) {
-          videoModal.classList.remove("visible");
-          try {
-            videoModalPlayer.pause();
-          } catch (e2) {
-          }
-        }
-      });
-    }
-
-    // 视频预览右上角关闭按钮
     if (videoModal && videoModalClose && videoModalPlayer) {
-      videoModalClose.addEventListener("click", () => {
+      const closeVideoModal = () => {
         videoModal.classList.remove("visible");
         try {
           videoModalPlayer.pause();
+          videoModalPlayer.currentTime = 0;
+          videoModalPlayer.removeAttribute("src");
+          videoModalPlayer.load();
         } catch (e) {
         }
+      };
+
+      // 视频预览遮罩点击关闭
+      videoModal.addEventListener("click", (e) => {
+        if (e.target === videoModal) {
+          closeVideoModal();
+        }
+      });
+
+      // 视频预览右上角关闭按钮
+      videoModalClose.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeVideoModal();
       });
     }
 
