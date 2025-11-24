@@ -51,6 +51,9 @@
           <button id="video-snapshot-btn" class="video-tool-btn" aria-label="拍照">
             <span class="video-tool-icon camera-icon"></span>
           </button>
+          <button id="video-record-btn" class="video-tool-btn" aria-label="录制视频">
+            <span class="video-tool-icon record-icon"></span>
+          </button>
           <button id="video-light-btn" class="video-tool-btn" aria-label="灯光">
             <span class="video-tool-icon light-icon"></span>
           </button>
@@ -121,6 +124,7 @@
       <div class="panel-status-header">
         <h2>当前状态</h2>
         <div class="status-service-icons">
+          <span class="status-service-label">服务状态：</span>
           <span
             id="video-health-status"
             class="video-health-icon video-health-icon--unknown"
@@ -256,6 +260,14 @@
       <button id="snapshot-modal-close" class="snapshot-modal-close" aria-label="关闭预览">×</button>
       <img id="snapshot-modal-img" alt="照片预览" />
       <div class="snapshot-modal-hint">长按（手机）或右键（电脑）图片可以保存到本地</div>
+    </div>
+  </div>
+
+  <div id="video-modal" class="snapshot-modal">
+    <div class="snapshot-modal-content">
+      <button id="video-modal-close" class="snapshot-modal-close" aria-label="关闭视频预览">×</button>
+      <video id="video-modal-player" controls></video>
+      <div class="snapshot-modal-hint">点击播放/暂停，可使用系统菜单另存为视频文件</div>
     </div>
   </div>
 

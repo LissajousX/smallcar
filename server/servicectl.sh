@@ -24,6 +24,11 @@ case "$SERVICE_NAME" in
     APP_PATTERN="snapshot_app.py"
     SUPERVISOR_PATTERN="snapshot_start.sh"
     ;;
+  video)
+    START_SCRIPT="/actions-runner/extensions.d/video_start.sh"
+    APP_PATTERN="video_app.py"
+    SUPERVISOR_PATTERN="video_start.sh"
+    ;;
   *)
     echo "Unknown service: $SERVICE_NAME" >&2
     exit 1

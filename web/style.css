@@ -293,6 +293,15 @@ button.danger:hover {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
 }
 
+.snapshot-modal video {
+  max-width: min(90vw, 640px);
+  max-height: 90vh;
+  border-radius: 8px;
+  border: 1px solid #1f2937;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  background: #000;
+}
+
 .snapshot-modal-content {
   position: relative;
   display: flex;
@@ -718,6 +727,30 @@ button.danger:hover {
   transform: translate(-50%, -50%);
 }
 
+.record-icon::before,
+.record-icon::after {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+}
+
+/* 录制按钮：外框与拍照图标矩形统一，只保留中间红点做区分 */
+.record-icon::before {
+  inset: 3px 2px 3px 2px;
+  border-radius: 4px;
+  border: 2px solid #e5e7eb;
+}
+
+.record-icon::after {
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ef4444;
+  transform: translate(-50%, -50%);
+}
+
 .snapshot-upload-icon {
   display: inline-block;
   position: relative;
@@ -775,7 +808,7 @@ button.danger:hover {
   position: relative;
   width: 16px;
   height: 12px;
-  margin-left: 4px;
+  margin-left: 0;
   box-sizing: border-box;
   border-radius: 2px;
   border: 2px solid currentColor; /* 相框 */
@@ -788,25 +821,26 @@ button.danger:hover {
   box-sizing: border-box;
 }
 
-/* 左下角小山形 */
+/* 左侧大山峰（向上三角形，底边水平） */
 .snapshot-health-icon::before {
-  bottom: 2px;
-  left: 3px;
+  bottom: 1px;
+  left: 2px;
   width: 0;
   height: 0;
-  border-left: 6px solid currentColor;
-  border-top: 4px solid transparent;
-  border-bottom: 2px solid transparent;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 7px solid currentColor;
 }
 
-/* 右上角小圆点（太阳） */
+/* 右侧小山峰（次级山峰） */
 .snapshot-health-icon::after {
-  top: 2px;
-  right: 3px;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: currentColor;
+  bottom: 1px;
+  left: 8px;
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-bottom: 5px solid currentColor;
 }
 
 .snapshot-health-icon--unknown {
@@ -825,6 +859,12 @@ button.danger:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  margin-right: 6px;
+}
+
+.status-service-label {
+  font-size: 12px;
+  color: #9ca3af;
 }
 
 .video-health-icon {
@@ -832,9 +872,10 @@ button.danger:hover {
   position: relative;
   width: 16px;
   height: 12px;
-  margin-left: 4px;
+  margin-left: 0;
   box-sizing: border-box;
   border-radius: 2px;
+  border: 2px solid currentColor;
 }
 
 .video-health-icon::before,
@@ -846,20 +887,18 @@ button.danger:hover {
 
 /* 播放器边框 */
 .video-health-icon::before {
-  inset: 1px 1px 1px 1px;
-  border-radius: 3px;
-  border: 2px solid currentColor;
+  inset: 0;
 }
 
 /* 播放三角形 */
 .video-health-icon::after {
-  top: 3px;
-  left: 6px;
+  top: 0px;
+  left: 4px;
   width: 0;
   height: 0;
-  border-top: 3px solid transparent;
-  border-bottom: 3px solid transparent;
-  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid currentColor;
 }
 
 .video-health-icon--unknown {

@@ -60,6 +60,7 @@
   const videoLoadBtn = document.getElementById("video-load-btn");
   const videoView = document.getElementById("video-view");
   const snapshotBtn = document.getElementById("video-snapshot-btn");
+  const recordBtn = document.getElementById("video-record-btn");
   const lightBtn = document.getElementById("video-light-btn");
 
   // 摄像头高级设置
@@ -99,6 +100,9 @@
   const snapshotModal = document.getElementById("snapshot-modal");
   const snapshotModalImg = document.getElementById("snapshot-modal-img");
   const snapshotModalClose = document.getElementById("snapshot-modal-close");
+  const videoModal = document.getElementById("video-modal");
+  const videoModalPlayer = document.getElementById("video-modal-player");
+  const videoModalClose = document.getElementById("video-modal-close");
   const camAdvancedModal = document.getElementById("cam-advanced-modal");
   const camAdvancedClose = document.getElementById("cam-advanced-close");
   const camAdvancedBtn = document.getElementById("video-advanced-btn");
@@ -134,6 +138,12 @@
     steer: 0,
     yaw: 90,
     pitch: 90,
+  };
+
+  const lastMedia = {
+    type: "photo", // "photo" | "video"
+    src: "",
+    videoUrl: "",
   };
 
   const VIDEO_PLACEHOLDER = "placeholder-video.svg";
@@ -613,11 +623,85 @@
         } else {
           setSnapshotUploadStatus("ok", "已上传");
         }
+        if (snapshotThumb) {
+          // 记录当前缩略图对应的是照片
+          lastMedia.type = "photo";
+          lastMedia.src = snapshotThumb.src || "";
+          lastMedia.videoUrl = "";
+        }
       } else {
         setSnapshotUploadStatus("error", "上传失败（路由器未确认保存）");
       }
     } catch (e) {
       setSnapshotUploadStatus("error", "上传失败");
+    }
+  }
+
+  async function triggerVideoRecordToRouter() {
+    if (typeof fetch !== "function") {
+      return;
+    }
+
+    const streamUrl = videoUrlInput ? videoUrlInput.value.trim() : "";
+    if (!streamUrl) {
+      return;
+    }
+
+    setSnapshotUploadStatus("uploading", "视频录制中...");
+
+    const routerBase = getRouterBase();
+    const url = `${routerBase}/record_video`;
+
+    const payload = {
+      stream_url: streamUrl,
+      duration: 5, // 先固定录制 5 秒，后续可做成可配置
+    };
+
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        mode: "cors",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        setSnapshotUploadStatus("error", `视频录制失败(${resp.status})`);
+        return;
+      }
+      let data = null;
+      try {
+        data = await resp.json();
+      } catch (e) {
+      }
+      if (data && data.ok) {
+        setSnapshotUploadStatus("ok", "视频录制完成");
+
+        // 期望后端返回绝对 URL：data.thumb（缩略图）、data.video（视频文件）
+        if (data.thumb && typeof data.thumb === "string") {
+          if (snapshotThumb) {
+            snapshotThumb.src = data.thumb;
+          }
+          lastMedia.type = "video";
+          lastMedia.src = data.thumb;
+          if (typeof data.video === "string" && data.video) {
+            lastMedia.videoUrl = data.video;
+          } else if (typeof data.path === "string" && data.path) {
+            lastMedia.videoUrl = data.path;
+          } else {
+            lastMedia.videoUrl = "";
+          }
+        } else if (typeof data.video === "string" && data.video) {
+          // 没有单独缩略图时，至少记录视频 URL，缩略图仍使用占位图
+          lastMedia.type = "video";
+          lastMedia.videoUrl = data.video;
+        }
+      } else {
+        setSnapshotUploadStatus("error", "视频录制失败（路由器未确认保存）");
+      }
+    } catch (e) {
+      setSnapshotUploadStatus("error", "视频录制失败");
     }
   }
 
@@ -1536,13 +1620,43 @@
       });
     }
 
-    // 点击当前状态中的缩略图，在当前页面弹出大图预览
+    // 视频录制按钮：调用 ESP32-CAM 的 record_to_router 接口，由路由器录制视频
+    if (recordBtn) {
+      recordBtn.addEventListener("click", () => {
+        const url = videoUrlInput.value.trim();
+        if (!url) {
+          alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
+          return;
+        }
+
+        triggerVideoRecordToRouter();
+      });
+    }
+
+    // 点击当前状态中的缩略图，在当前页面弹出预览（照片或视频）
     if (snapshotThumb && snapshotModal && snapshotModalImg) {
       snapshotThumb.addEventListener("click", () => {
         const src = snapshotThumb.src || "";
         if (!src || src.includes(VIDEO_PLACEHOLDER)) {
           return;
         }
+
+        if (
+          lastMedia.type === "video" &&
+          videoModal &&
+          videoModalPlayer &&
+          lastMedia.videoUrl
+        ) {
+          videoModalPlayer.src = lastMedia.videoUrl;
+          try {
+            videoModalPlayer.currentTime = 0;
+            videoModalPlayer.play().catch(() => {});
+          } catch (e) {
+          }
+          videoModal.classList.add("visible");
+          return;
+        }
+
         snapshotModalImg.src = src;
         snapshotModal.classList.add("visible");
       });
@@ -1555,10 +1669,34 @@
       });
     }
 
-    // 右上角关闭按钮关闭预览
+    // 右上角关闭按钮关闭照片预览
     if (snapshotModal && snapshotModalClose) {
       snapshotModalClose.addEventListener("click", () => {
         snapshotModal.classList.remove("visible");
+      });
+    }
+
+    // 视频预览遮罩点击关闭
+    if (videoModal && videoModalPlayer) {
+      videoModal.addEventListener("click", (e) => {
+        if (e.target === videoModal) {
+          videoModal.classList.remove("visible");
+          try {
+            videoModalPlayer.pause();
+          } catch (e2) {
+          }
+        }
+      });
+    }
+
+    // 视频预览右上角关闭按钮
+    if (videoModal && videoModalClose && videoModalPlayer) {
+      videoModalClose.addEventListener("click", () => {
+        videoModal.classList.remove("visible");
+        try {
+          videoModalPlayer.pause();
+        } catch (e) {
+        }
       });
     }
 
