@@ -27,6 +27,9 @@ if [ -d /var/log ]; then
   chown -R runner:runner /var/log
 fi
 
+mkdir -p /var/lib/nginx/body
+chown -R runner:runner /var/lib/nginx
+
 if [ -f /etc/nginx/nginx.conf ]; then
   chown runner:runner /etc/nginx/nginx.conf
 fi
