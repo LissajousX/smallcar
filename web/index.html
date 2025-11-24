@@ -354,7 +354,7 @@
           <div class="hint" id="ota-status">可以手动选择编译生成的 .bin 文件，或直接从路由器提供的最新固件一键升级。</div>
         </div>
         <div class="field">
-          <label for="router-base">固件服务器（可选）：</label>
+          <label for="router-base">路由地址：</label>
           <input
             id="router-base"
             class="top-pill-input"
@@ -363,8 +363,10 @@
             placeholder="如 http://192.168.31.1:8099"
           />
           <div class="hint">
-            默认使用 <code>http://192.168.31.1:8099</code>。CI 会在
-            <code>http://192.168.31.1:8099/firmware/esp32cam-latest.bin</code>
+            用于访问路由器上的 SmallCar Web 服务（快照 / 视频 / 固件）。默认使用
+            <code>http://192.168.31.1:8099</code>
+            ，CI 会在
+            <code>/firmware/esp32cam-latest.bin</code>
             提供最新固件，一般无需修改此项。
           </div>
         </div>

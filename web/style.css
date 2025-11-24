@@ -693,26 +693,43 @@ button.danger:hover {
   transform: translate(-50%, -50%);
 }
 
-.light-icon::before {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 4px;
-  right: 4px;
-  height: 8px;
-  border-radius: 999px;
-  border: 2px solid #e5e7eb;
-}
-
+.light-icon::before,
 .light-icon::after {
   content: "";
   position: absolute;
+  box-sizing: border-box;
+}
+
+/* 小太阳图标：中间圆形太阳 + 四个短光芒 */
+.light-icon::before {
+  top: 50%;
   left: 50%;
-  bottom: 2px;
-  width: 0;
-  height: 6px;
-  border-left: 2px solid #e5e7eb;
-  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid #e5e7eb;
+  transform: translate(-50%, -50%);
+}
+
+.light-icon::after {
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+  /* 八个方向的光芒：上/下/左/右 + 四个对角线 */
+  box-shadow:
+    0 -7px 0 -5px #e5e7eb,
+    0 7px 0 -5px #e5e7eb,
+    -7px 0 0 -5px #e5e7eb,
+    7px 0 0 -5px #e5e7eb,
+    -5px -5px 0 -5px #e5e7eb,
+    5px -5px 0 -5px #e5e7eb,
+    -5px 5px 0 -5px #e5e7eb,
+    5px 5px 0 -5px #e5e7eb;
+  transform: translate(-50%, -50%);
 }
 
 .settings-icon::after {
@@ -749,6 +766,13 @@ button.danger:hover {
   border-radius: 50%;
   background: #ef4444;
   transform: translate(-50%, -50%);
+}
+
+/* 录像进行中：中间红点变成小方块 */
+.video-tool-btn.recording .record-icon::after {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
 }
 
 .snapshot-upload-icon {
