@@ -124,7 +124,7 @@ def main():
     parser.add_argument("--port", type=int, default=5001)
     parser.add_argument(
         "--snapshot-dir",
-        default="/usr/share/nginx/html/snapshots",
+        default="/data/camera/snapshots",
     )
     parser.add_argument(
         "--url-prefix",

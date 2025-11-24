@@ -87,29 +87,29 @@ jobs:
           # 重载 nginx（如果已经在运行）
           nginx -s reload || true
 
-      - name: Deploy snapshot upload service into persistent runner dir
+      - name: Deploy camera snapshot upload service into persistent runner dir
         if: steps.snapshot_changes.outputs.changed == 'true'
         run: |
           set -e
-          SNAPSHOT_SRC="server/snapshot_app.py"
+          CAMERA_SNAPSHOT_SRC="server/snapshot_app.py"
           STARTER_SRC="server/snapshot_start.sh"
-          SNAPSHOT_DEST_DIR="/actions-runner/snapshot_server"
+          CAMERA_DEST_DIR="/actions-runner/camera"
           EXT_DIR="/actions-runner/extensions.d"
 
-          if [ ! -f "$SNAPSHOT_SRC" ]; then
+          if [ ! -f "$CAMERA_SNAPSHOT_SRC" ]; then
             echo "snapshot_app.py not present in repo; skip deploy."
             exit 0
           fi
 
-          mkdir -p "$SNAPSHOT_DEST_DIR"
-          cp "$SNAPSHOT_SRC" "$SNAPSHOT_DEST_DIR/snapshot_app.py"
-          chmod 755 "$SNAPSHOT_DEST_DIR/snapshot_app.py"
+          mkdir -p "$CAMERA_DEST_DIR"
+          cp "$CAMERA_SNAPSHOT_SRC" "$CAMERA_DEST_DIR/snapshot_app.py"
+          chmod 755 "$CAMERA_DEST_DIR/snapshot_app.py"
 
           if [ -f "$STARTER_SRC" ]; then
             mkdir -p "$EXT_DIR"
             cp "$STARTER_SRC" "$EXT_DIR/snapshot_start.sh"
             chmod 755 "$EXT_DIR/snapshot_start.sh"
-            echo "Running snapshot_start.sh to (re)start snapshot service..."
+            echo "Running snapshot_start.sh to (re)start camera snapshot service..."
             "$EXT_DIR/snapshot_start.sh"
           else
             echo "snapshot_start.sh not found in repo; snapshot service will rely on existing processes or entrypoint extensions.d."
