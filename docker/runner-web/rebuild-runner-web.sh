@@ -12,7 +12,7 @@ HOST_PORT="8099"   # 对外暴露的端口，前端默认使用 8099，如有不
 HOST_WEBROOT="/mnt/sata5-4/dockerdisk/smallcar/webroot"           # 映射到容器内 /usr/share/nginx/html
 HOST_RUNNER_DIR="/mnt/sata5-4/dockerdisk/smallcar/actions-runner" # 映射到容器内 /actions-runner
 HOST_NGINX_LOG_DIR="/mnt/sata5-4/dockerdisk/smallcar/log/nginx"  # 映射到容器内 /var/log/nginx，用于持久化访问/错误日志
-HOST_SNAPSHOT_LOG_DIR="/mnt/sata5-4/dockerdisk/smallcar/log/snapshot"  # 映射到容器内 /var/log/snapshot
+HOST_CAMERA_LOG_DIR="/mnt/sata5-4/dockerdisk/smallcar/log/camera"  # 映射到容器内 /var/log/camera，用于持久化摄像头相关日志
 
 # 计算仓库根目录（本脚本位于 docker/runner-web/ 下）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,7 +49,7 @@ if docker ps -a --format '{{.Names}}' | grep -w "${CONTAINER_NAME}" >/dev/null 2
 fi
 
 # 确保宿主机挂载目录存在
-HOST_DIRS="${HOST_WEBROOT} ${HOST_RUNNER_DIR} ${HOST_NGINX_LOG_DIR} ${HOST_SNAPSHOT_LOG_DIR} ${HOST_DATA_DIR}"
+HOST_DIRS="${HOST_WEBROOT} ${HOST_RUNNER_DIR} ${HOST_NGINX_LOG_DIR} ${HOST_CAMERA_LOG_DIR} ${HOST_DATA_DIR}"
 for d in $HOST_DIRS; do
   mkdir -p "$d"
 done
@@ -68,7 +68,7 @@ docker run -d \
   -v "${HOST_WEBROOT}:/usr/share/nginx/html" \
   -v "${HOST_RUNNER_DIR}:/actions-runner" \
   -v "${HOST_NGINX_LOG_DIR}:/var/log/nginx" \
-  -v "${HOST_SNAPSHOT_LOG_DIR}:/var/log/snapshot" \
+  -v "${HOST_CAMERA_LOG_DIR}:/var/log/camera" \
   -v "${HOST_DATA_DIR}:/data" \
   -v "${HOST_NGINX_CONF}:${NGINX_CONF_CONTAINER_PATH}:ro" \
   "${IMAGE_NAME}"
