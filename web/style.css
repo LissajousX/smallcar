@@ -427,6 +427,30 @@ button.danger:hover {
   margin-bottom: 10px;
 }
 
+.cam-advanced-apply-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cam-advanced-apply-status {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.cam-advanced-apply-status--applying {
+  color: #f97316;
+}
+
+.cam-advanced-apply-status--applied {
+  color: #22c55e;
+}
+
+.cam-advanced-apply-row .btn-icon.apply-icon {
+  display: none;
+}
+
 .field .small-btn {
   margin-top: 4px;
 }

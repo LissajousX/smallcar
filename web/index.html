@@ -278,12 +278,6 @@
       <section class="panel panel-advanced">
         <h2>摄像头高级设置</h2>
         <div class="field">
-          <div class="status-fw-build">
-            ESP32-CAM 固件：
-            <span id="status-fw-build">--</span>
-          </div>
-        </div>
-        <div class="field">
           <label for="cam-preset">画质预设：</label>
           <select id="cam-preset" class="top-pill-input">
             <option value="low">流畅（低延迟）</option>
@@ -346,6 +340,13 @@
           <label for="cam-light">补光灯亮度：<span id="cam-light-value">0</span></label>
           <input id="cam-light" type="range" min="0" max="255" value="125" />
         </div>
+        <div class="field cam-advanced-apply-row">
+          <button id="cam-advanced-apply" class="small-btn">
+            <span class="btn-icon apply-icon"></span>
+            <span class="btn-text">应用到摄像头</span>
+          </button>
+          <span id="cam-advanced-apply-status" class="cam-advanced-apply-status">尚未应用</span>
+        </div>
         <div class="field">
           <label for="ota-file">ESP32-CAM 固件升级：</label>
           <input id="ota-file" type="file" accept=".bin" />
@@ -364,17 +365,15 @@
             placeholder="如 http://192.168.31.1:8099"
           />
           <div class="hint">
-            用于访问路由器上的 SmallCar Web 服务（快照 / 视频 / 固件）。默认使用
-            <code>http://192.168.31.1:8099</code>
-            ，CI 会在
-            <code>/firmware/esp32cam-latest.bin</code>
-            提供最新固件，一般无需修改此项。
+            用于访问路由器上的 SmallCar Web 服务（快照 / 视频 / 固件）。
           </div>
         </div>
-        <button id="cam-advanced-apply" class="small-btn">
-          <span class="btn-icon apply-icon"></span>
-          <span class="btn-text">应用到摄像头</span>
-        </button>
+        <div class="field">
+          <div class="status-fw-build">
+            ESP32-CAM 固件：
+            <span id="status-fw-build">--</span>
+          </div>
+        </div>
       </section>
     </div>
   </div>

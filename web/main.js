@@ -83,6 +83,7 @@
   const camLightInput = document.getElementById("cam-light");
   const camLightValue = document.getElementById("cam-light-value");
   const camAdvancedApplyBtn = document.getElementById("cam-advanced-apply");
+  const camAdvancedApplyStatus = document.getElementById("cam-advanced-apply-status");
   const otaFileInput = document.getElementById("ota-file");
   const otaUploadBtn = document.getElementById("ota-upload-btn");
   const otaFetchLatestBtn = document.getElementById("ota-fetch-latest-btn");
@@ -137,6 +138,7 @@
   let videoRecordTimerId = null;
   let lightOn = false; // 补光灯当前状态
   let lightLevel = 125; // 补光灯亮度（0-255），默认 125
+  let cameraStatusLoaded = false; // 是否已成功从 ESP32-CAM 加载过一次状态
 
   const state = {
     throttle: 0,
@@ -217,6 +219,22 @@
       return "清晰：800×600 左右，压缩率低，画质最好，对带宽/性能要求较高。";
     }
     return "平衡：640×480，中等码率，适合大多数场景。";
+  }
+
+  function guessPresetFromStatus(data) {
+    if (!data || typeof data.framesize !== "number" || typeof data.quality !== "number") {
+      return "normal";
+    }
+    const fs = data.framesize;
+    const q = data.quality;
+    // 基于 ESP32-CAM 的典型配置粗略推断：QVGA/低码率=流畅，SVGA/高码率=清晰，其余视为平衡
+    if (fs <= 5 && q >= 16) {
+      return "low";
+    }
+    if (fs >= 10 && q <= 12) {
+      return "high";
+    }
+    return "normal";
   }
 
   function getRouterBase() {
@@ -312,6 +330,31 @@
     }
   }
 
+  function setCamAdvancedApplyStatus(state) {
+    if (!camAdvancedApplyStatus) {
+      return;
+    }
+
+    camAdvancedApplyStatus.classList.remove(
+      "cam-advanced-apply-status--idle",
+      "cam-advanced-apply-status--applying",
+      "cam-advanced-apply-status--applied",
+    );
+
+    let text = "尚未应用";
+    let cls = "cam-advanced-apply-status--idle";
+    if (state === "applying") {
+      text = "正在应用到摄像头...";
+      cls = "cam-advanced-apply-status--applying";
+    } else if (state === "applied") {
+      text = "已应用到摄像头";
+      cls = "cam-advanced-apply-status--applied";
+    }
+
+    camAdvancedApplyStatus.textContent = text;
+    camAdvancedApplyStatus.classList.add(cls);
+  }
+
   async function loadCameraStatus() {
     const base = buildCameraBaseFromVideoUrl();
     if (!base || !window.fetch) {
@@ -323,6 +366,10 @@
         return;
       }
       const data = await resp.json();
+      if (camPresetSelect && typeof data.framesize === "number" && typeof data.quality === "number") {
+        camPresetSelect.value = guessPresetFromStatus(data);
+        updateCamPresetDesc();
+      }
       if (camBrightnessInput && typeof data.brightness === "number") {
         camBrightnessInput.value = String(data.brightness);
       }
@@ -381,6 +428,7 @@
           videoLightSlider.classList.add("visible");
         }
       }
+      cameraStatusLoaded = true;
       updateCameraAdvancedLabels();
     } catch (e) {
       // 忽略状态获取失败，不影响其他功能
@@ -392,6 +440,10 @@
     if (!base) {
       alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
       return;
+    }
+
+    if (camAdvancedApplyStatus) {
+      setCamAdvancedApplyStatus("applying");
     }
 
     const urls = [];
@@ -407,10 +459,10 @@
     if (camSaturationInput) {
       urls.push(`${base}/control?var=saturation&val=${encodeURIComponent(camSaturationInput.value)}`);
     }
-    if (camHmirrorInput) {
+    if (cameraStatusLoaded && camHmirrorInput) {
       urls.push(`${base}/control?var=hmirror&val=${camHmirrorInput.checked ? 1 : 0}`);
     }
-    if (camVflipInput) {
+    if (cameraStatusLoaded && camVflipInput) {
       urls.push(`${base}/control?var=vflip&val=${camVflipInput.checked ? 1 : 0}`);
     }
     if (camAwbInput) {
@@ -439,6 +491,13 @@
       }
     }
 
+    if (urls.length === 0) {
+      if (camAdvancedApplyStatus) {
+        setCamAdvancedApplyStatus("applied");
+      }
+      return;
+    }
+
     urls.forEach((u) => {
       try {
         fetch(u, { mode: "no-cors" }).catch(() => {});
@@ -446,6 +505,10 @@
         // 忽略浏览器环境不支持 fetch 的情况
       }
     });
+
+    if (camAdvancedApplyStatus) {
+      setCamAdvancedApplyStatus("applied");
+    }
   }
 
   function setStatus(text, cls) {
@@ -1900,6 +1963,9 @@
 
     if (camAdvancedModal && camAdvancedBtn) {
       camAdvancedBtn.addEventListener("click", () => {
+        if (camAdvancedApplyStatus) {
+          setCamAdvancedApplyStatus("idle");
+        }
         loadCameraStatus();
         camAdvancedModal.classList.add("visible");
       });
@@ -1908,6 +1974,9 @@
         if (e.target === camAdvancedModal) {
           camAdvancedModal.classList.remove("visible");
           resetOtaControls();
+          if (camAdvancedApplyStatus) {
+            setCamAdvancedApplyStatus("idle");
+          }
         }
       });
     }
@@ -1916,6 +1985,9 @@
       camAdvancedClose.addEventListener("click", () => {
         camAdvancedModal.classList.remove("visible");
         resetOtaControls();
+        if (camAdvancedApplyStatus) {
+          setCamAdvancedApplyStatus("idle");
+        }
       });
     }
 
@@ -2114,6 +2186,9 @@
   window.addEventListener("load", () => {
     scrollVideoIntoViewIfLandscape();
     updateLightSliderSize();
+    if (camAdvancedApplyStatus) {
+      setCamAdvancedApplyStatus("idle");
+    }
     loadCameraStatus();
     startSnapshotHealthPolling();
     startVideoHealthPolling();
