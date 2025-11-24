@@ -8,6 +8,7 @@ on:
       - 'web/**'
       - 'esp32_cam/CameraWebServer/**'
       - 'server/**'
+      - 'docker/runner-web/**'
   workflow_dispatch:
 
 jobs:
