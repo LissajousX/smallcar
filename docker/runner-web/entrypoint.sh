@@ -30,6 +30,9 @@ fi
 mkdir -p /var/lib/nginx/body
 chown -R runner:runner /var/lib/nginx
 
+touch /run/nginx.pid
+chown runner:runner /run/nginx.pid
+
 if [ -f /etc/nginx/nginx.conf ]; then
   chown runner:runner /etc/nginx/nginx.conf
 fi
