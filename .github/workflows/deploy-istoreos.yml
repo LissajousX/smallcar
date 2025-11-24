@@ -120,8 +120,14 @@ jobs:
             mkdir -p "$EXT_DIR"
             cp "$STARTER_SRC" "$EXT_DIR/snapshot_start.sh"
             chmod 755 "$EXT_DIR/snapshot_start.sh"
-            echo "Running snapshot_start.sh to (re)start camera snapshot service..."
-            "$EXT_DIR/snapshot_start.sh"
+            echo "Ensuring camera snapshot service picks up latest code (if supervisor is running)..."
+            PIDS="$(ps -eo pid,cmd | grep "python3 /actions-runner/camera/snapshot_app.py" | grep -v grep | awk '{print $1}')"
+            if [ -n "$PIDS" ]; then
+              echo "Killing existing snapshot_app.py processes: $PIDS"
+              kill $PIDS || true
+            else
+              echo "No running snapshot_app.py processes found; it will be started by extensions.d on next container start."
+            fi
           else
             echo "snapshot_start.sh not found in repo; snapshot service will rely on existing processes or entrypoint extensions.d."
           fi
