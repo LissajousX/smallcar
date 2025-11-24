@@ -770,6 +770,110 @@ button.danger:hover {
   color: #f97316; /* 橙色：上传失败 */
 }
 
+.snapshot-health-icon {
+  display: inline-block;
+  position: relative;
+  width: 16px;
+  height: 12px;
+  margin-left: 4px;
+  box-sizing: border-box;
+  border-radius: 2px;
+  border: 2px solid currentColor; /* 相框 */
+}
+
+.snapshot-health-icon::before,
+.snapshot-health-icon::after {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+}
+
+/* 左下角小山形 */
+.snapshot-health-icon::before {
+  bottom: 2px;
+  left: 3px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 2px solid transparent;
+}
+
+/* 右上角小圆点（太阳） */
+.snapshot-health-icon::after {
+  top: 2px;
+  right: 3px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.snapshot-health-icon--unknown {
+  color: #6b7280; /* 灰色：未知/未检测 */
+}
+
+.snapshot-health-icon--ok {
+  color: #22c55e; /* 绿色：服务正常 */
+}
+
+.snapshot-health-icon--error {
+  color: #f97316; /* 橙色：异常/不可用 */
+}
+
+.status-service-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.video-health-icon {
+  display: inline-block;
+  position: relative;
+  width: 16px;
+  height: 12px;
+  margin-left: 4px;
+  box-sizing: border-box;
+  border-radius: 2px;
+}
+
+.video-health-icon::before,
+.video-health-icon::after {
+  content: "";
+  position: absolute;
+  box-sizing: border-box;
+}
+
+/* 播放器边框 */
+.video-health-icon::before {
+  inset: 1px 1px 1px 1px;
+  border-radius: 3px;
+  border: 2px solid currentColor;
+}
+
+/* 播放三角形 */
+.video-health-icon::after {
+  top: 3px;
+  left: 6px;
+  width: 0;
+  height: 0;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  border-left: 5px solid currentColor;
+}
+
+.video-health-icon--unknown {
+  color: #6b7280; /* 灰色：未知/未检测 */
+}
+
+.video-health-icon--ok {
+  color: #22c55e; /* 绿色：服务正常 */
+}
+
+.video-health-icon--error {
+  color: #f97316; /* 橙色：异常/不可用 */
+}
+
 .video-overlay {
   position: absolute;
   inset: 0;

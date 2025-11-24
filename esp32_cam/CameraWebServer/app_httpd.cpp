@@ -543,10 +543,29 @@ static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
     return ESP_FAIL;
   }
 
+  bool router_http_ok = false;
+  bool got_status_line = false;
+  String status_line;
   uint32_t start = millis();
   while (client.connected() && (millis() - start) < 2000) {
     while (client.available()) {
-      (void)client.read();
+      char c = (char)client.read();
+      if (!got_status_line) {
+        if (c == '\r') {
+          continue;
+        }
+        if (c == '\n') {
+          got_status_line = true;
+          if (status_line.startsWith("HTTP/1.1 200") || status_line.startsWith("HTTP/1.0 200")) {
+            router_http_ok = true;
+          }
+          // 之后的内容直接丢弃
+          continue;
+        }
+        if (status_line.length() < 80) {
+          status_line += c;
+        }
+      }
     }
     delay(10);
   }
@@ -555,10 +574,12 @@ static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   httpd_resp_set_type(req, "application/json");
   char resp[160];
+  bool overall_ok = router_http_ok;
   int n = snprintf(
     resp,
     sizeof(resp),
-    "{\"ok\":true,\"host\":\"%s\",\"port\":%d,\"path\":\"%s\",\"bytes\":%u}",
+    "{\"ok\":%s,\"host\":\"%s\",\"port\":%d,\"path\":\"%s\",\"bytes\":%u}",
+    overall_ok ? "true" : "false",
     router_host,
     router_port,
     router_path,

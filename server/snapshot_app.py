@@ -17,11 +17,25 @@ class SnapshotHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def do_OPTIONS(self):
-        if self.path.startswith("/upload_snapshot"):
+        if self.path.startswith("/upload_snapshot") or self.path.startswith("/snapshot_health"):
             self.send_response(204)
             self._set_cors_headers()
             self.send_header("Content-Length", "0")
             self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_GET(self):
+        if self.path.startswith("/snapshot_health"):
+            body_obj = {"ok": True}
+            data = json.dumps(body_obj, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self._set_cors_headers()
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
         else:
             self.send_response(404)
             self.end_headers()

@@ -120,10 +120,18 @@
     <section class="panel panel-status">
       <div class="panel-status-header">
         <h2>当前状态</h2>
-        <span class="status-fw-build">
-          ESP32-CAM 固件：
-          <span id="status-fw-build">--</span>
-        </span>
+        <div class="status-service-icons">
+          <span
+            id="video-health-status"
+            class="video-health-icon video-health-icon--unknown"
+            title="视频服务状态未知"
+          ></span>
+          <span
+            id="snapshot-health-status"
+            class="snapshot-health-icon snapshot-health-icon--unknown"
+            title="快照服务状态未知"
+          ></span>
+        </div>
       </div>
       <div class="status-grid">
         <div class="status-item">
@@ -256,6 +264,12 @@
       <button id="cam-advanced-close" class="snapshot-modal-close" aria-label="关闭高级设置">×</button>
       <section class="panel panel-advanced">
         <h2>摄像头高级设置</h2>
+        <div class="field">
+          <div class="status-fw-build">
+            ESP32-CAM 固件：
+            <span id="status-fw-build">--</span>
+          </div>
+        </div>
         <div class="field">
           <label for="cam-preset">画质预设：</label>
           <select id="cam-preset" class="top-pill-input">

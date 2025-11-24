@@ -115,6 +115,8 @@
   const statusPitch = document.getElementById("status-pitch");
   const statusFwBuild = document.getElementById("status-fw-build");
   const snapshotUploadStatus = document.getElementById("snapshot-upload-status");
+  const snapshotHealthStatus = document.getElementById("snapshot-health-status");
+  const videoHealthStatus = document.getElementById("video-health-status");
 
   const ovStatusThrottle = document.getElementById("ov-status-throttle");
   const ovStatusSteer = document.getElementById("ov-status-steer");
@@ -465,6 +467,99 @@
     }
   }
 
+  function setSnapshotHealthStatus(state, hint) {
+    if (!snapshotHealthStatus) {
+      return;
+    }
+
+    snapshotHealthStatus.classList.remove(
+      "snapshot-health-icon--unknown",
+      "snapshot-health-icon--ok",
+      "snapshot-health-icon--error",
+    );
+
+    let cls = "snapshot-health-icon--unknown";
+    if (state === "ok") {
+      cls = "snapshot-health-icon--ok";
+    } else if (state === "error") {
+      cls = "snapshot-health-icon--error";
+    }
+
+    snapshotHealthStatus.textContent = "";
+    snapshotHealthStatus.classList.add("snapshot-health-icon", cls);
+    if (typeof hint === "string" && hint) {
+      snapshotHealthStatus.title = hint;
+    }
+  }
+
+  function setVideoHealthStatus(state, hint) {
+    if (!videoHealthStatus) {
+      return;
+    }
+
+    videoHealthStatus.classList.remove(
+      "video-health-icon--unknown",
+      "video-health-icon--ok",
+      "video-health-icon--error",
+    );
+
+    let cls = "video-health-icon--unknown";
+    if (state === "ok") {
+      cls = "video-health-icon--ok";
+    } else if (state === "error") {
+      cls = "video-health-icon--error";
+    }
+
+    videoHealthStatus.textContent = "";
+    videoHealthStatus.classList.add("video-health-icon", cls);
+    if (typeof hint === "string" && hint) {
+      videoHealthStatus.title = hint;
+    }
+  }
+
+  let snapshotHealthTimer = null;
+
+  function startSnapshotHealthPolling() {
+    if (typeof fetch !== "function") {
+      return;
+    }
+
+    const poll = async () => {
+      const routerBase = getRouterBase();
+      if (!routerBase) {
+        return;
+      }
+      try {
+        const resp = await fetch(`${routerBase}/snapshot_health?t=${Date.now()}`, {
+          mode: "cors",
+          cache: "no-store",
+        });
+        if (!resp.ok) {
+          setSnapshotHealthStatus("error", `快照服务异常(${resp.status})`);
+          return;
+        }
+        let data = null;
+        try {
+          data = await resp.json();
+        } catch (e) {
+        }
+        if (data && data.ok) {
+          setSnapshotHealthStatus("ok", "快照服务正常");
+        } else {
+          setSnapshotHealthStatus("error", "快照服务返回异常");
+        }
+      } catch (e) {
+        setSnapshotHealthStatus("error", "无法连接快照服务");
+      }
+    };
+
+    poll();
+    if (snapshotHealthTimer) {
+      clearInterval(snapshotHealthTimer);
+    }
+    snapshotHealthTimer = setInterval(poll, 15000);
+  }
+
   async function triggerSnapshotToRouter() {
     const base = buildCameraBaseFromVideoUrl();
     if (!base || typeof fetch !== "function") {
@@ -512,10 +607,14 @@
         data = await resp.json();
       } catch (e) {
       }
-      if (data && data.ok && typeof data.bytes === "number") {
-        setSnapshotUploadStatus("ok", `已上传 (${data.bytes}B)`);
+      if (data && data.ok) {
+        if (typeof data.bytes === "number") {
+          setSnapshotUploadStatus("ok", `已上传 (${data.bytes}B)`);
+        } else {
+          setSnapshotUploadStatus("ok", "已上传");
+        }
       } else {
-        setSnapshotUploadStatus("ok", "已上传");
+        setSnapshotUploadStatus("error", "上传失败（路由器未确认保存）");
       }
     } catch (e) {
       setSnapshotUploadStatus("error", "上传失败");
@@ -1675,6 +1774,8 @@
     scrollVideoIntoViewIfLandscape();
     updateLightSliderSize();
     loadCameraStatus();
+    startSnapshotHealthPolling();
+    setVideoHealthStatus("unknown", "视频服务状态未知");
   });
   window.addEventListener("orientationchange", () => {
     scrollVideoIntoViewIfLandscape();
