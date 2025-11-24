@@ -437,6 +437,36 @@ static esp_err_t capture_handler(httpd_req_t *req) {
   return res;
 }
 
+static int hex_value(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+  if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+  return -1;
+}
+
+static void url_decode_inplace(char *s) {
+  char *src = s;
+  char *dst = s;
+  while (*src) {
+    if (*src == '%' && src[1] && src[2]) {
+      int hi = hex_value(src[1]);
+      int lo = hex_value(src[2]);
+      if (hi >= 0 && lo >= 0) {
+        *dst++ = (char)((hi << 4) | lo);
+        src += 3;
+        continue;
+      }
+    }
+    if (*src == '+') {
+      *dst++ = ' ';
+      src++;
+    } else {
+      *dst++ = *src++;
+    }
+  }
+  *dst = '\0';
+}
+
 static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
@@ -475,6 +505,8 @@ static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
       free(query);
     }
   }
+
+  url_decode_inplace(router_path);
 
   WiFiClient client;
   if (!client.connect(router_host, router_port)) {
