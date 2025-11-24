@@ -2,6 +2,7 @@
   const wsUrlInput = document.getElementById("ws-url");
   const wsBtn = document.getElementById("ws-connect-btn");
   const wsStatus = document.getElementById("ws-status");
+  const appTitleEl = document.getElementById("app-title");
 
   const throttleInput = document.getElementById("throttle");
   const steerInput = document.getElementById("steer");
@@ -193,6 +194,32 @@
       "ontouchstart" in window ||
       (navigator && (navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0))
     );
+  }
+
+  function applyAppVersion(raw) {
+    if (!raw) return;
+    const version = String(raw).trim();
+    if (!version) return;
+    const baseTitle = "SmallCar \u8fdc\u7a0b\u63a7\u5236\u9762\u677f";
+    const baseHeader = "SmallCar \u8fdc\u7a0b\u63a7\u5236";
+    document.title = `${baseTitle} ${version}`;
+    if (appTitleEl) {
+      appTitleEl.textContent = `${baseHeader} ${version}`;
+    }
+  }
+
+  async function loadAppVersion() {
+    if (typeof fetch !== "function") {
+      return;
+    }
+    try {
+      const resp = await fetch("version.txt", { cache: "no-store" });
+      if (!resp.ok) {
+        return;
+      }
+      const text = await resp.text();
+      applyAppVersion(text);
+    } catch (e) {}
   }
 
   function resetOtaControls() {
@@ -2211,6 +2238,7 @@
   window.addEventListener("load", () => {
     scrollVideoIntoViewIfLandscape();
     updateLightSliderSize();
+    loadAppVersion();
     if (camAdvancedApplyStatus) {
       setCamAdvancedApplyStatus("idle");
     }

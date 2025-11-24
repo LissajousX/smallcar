@@ -92,6 +92,16 @@ jobs:
       - name: Deploy static web into Nginx document root
         run: |
           echo "Sync web/ to Nginx document roots inside Docker runner..."
+
+          VERSION="dev"
+          if git describe --tags --abbrev=0 >/dev/null 2>&1; then
+            VERSION=$(git describe --tags --abbrev=0)
+          else
+            VERSION=$(git rev-parse --short HEAD)
+          fi
+          echo "Using app version: $VERSION"
+          echo "$VERSION" > web/version.txt
+
           # /usr/share/nginx/html（部分发行版默认）
           if [ -d /usr/share/nginx/html ]; then
             find /usr/share/nginx/html -mindepth 1 -maxdepth 1 -exec rm -rf {} +
