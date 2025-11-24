@@ -10,6 +10,7 @@ RUN apt-get update && \
       nginx \
       jq \
       tzdata \
+      ffmpeg \
       python3 \
       python3-pip \
     && pip3 install -U platformio \
