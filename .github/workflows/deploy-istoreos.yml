@@ -151,8 +151,8 @@ jobs:
             fi
 
             if [ -z "$SUP_PIDS" ]; then
-              echo "No snapshot supervisor running; starting one via su runner -c ..."
-              su runner -c "$EXT_DIR/snapshot_start.sh" &
+              echo "No snapshot supervisor running; starting one in background ..."
+              "$EXT_DIR/snapshot_start.sh" &
             else
               echo "Snapshot supervisor already running: $SUP_PIDS"
             fi
@@ -194,8 +194,8 @@ jobs:
             fi
 
             if [ -z "$SUP_PIDS" ]; then
-              echo "No video supervisor running; starting one via su runner -c ..."
-              su runner -c "$EXT_DIR/video_start.sh" &
+              echo "No video supervisor running; starting one in background ..."
+              "$EXT_DIR/video_start.sh" &
             else
               echo "Video supervisor already running: $SUP_PIDS"
             fi
