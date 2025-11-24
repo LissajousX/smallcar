@@ -358,8 +358,54 @@ smallcar/
 
  该命令会停止并禁用 `smallcar-web` 服务，删除 `/etc/init.d/smallcar-web` 脚本以及 `/www/smallcar` 目录。
 
- - 你可以自由地使用、复制、修改、合并、出版、分发本项目代码，甚至用于商业用途；
- - 唯一要求是在所有副本或重要部分中保留原始的版权声明和许可声明；
- - 本项目代码按“现状（AS IS）”提供，不提供任何形式的担保，作者不对任何使用造成的损失负责。
+### 在 Docker Runner 容器中管理快照服务
 
- 详细条款请参见仓库根目录的 `LICENSE` 文件（MIT License 原文）。
+当你使用 `docker/runner-web` + `.github/workflows/deploy-istoreos.yml` 这套方案时，路由器上会跑一个名为 `smallcar-runner-web` 的容器，里面同时承载：
+
+- Nginx（提供 Web 控制面板与快照 HTTP 入口）；
+- GitHub Actions Runner（负责从 GitHub 拉取最新代码并部署到容器内）；
+- Python 快照服务 `snapshot_app.py`（通过 `/upload_snapshot`、`/snapshot_health` 提供快照上传与健康检查）。
+
+为了方便在容器内调试/测试快照服务，本仓库提供了通用管理脚本：`server/servicectl.sh`.
+
+1. 进入容器并切换到仓库目录（在 Runner 中通常为 `/actions-runner/_work/smallcar/smallcar`）：
+
+   ```sh
+   docker exec -it smallcar-runner-web bash
+   cd /actions-runner/_work/smallcar/smallcar
+   ```
+
+2. 使用 `servicectl.sh` 管理快照服务（当前支持的 service 为 `snapshot`）：
+
+   ```sh
+   # 查看快照服务状态（supervisor + Python 应用）
+   bash server/servicectl.sh snapshot status
+
+   # 停止快照服务（包括 supervisor 与 snapshot_app.py）
+   bash server/servicectl.sh snapshot stop
+
+   # 启动快照服务（通过 /actions-runner/extensions.d/snapshot_start.sh 运行 supervisor）
+   bash server/servicectl.sh snapshot start
+
+   # 重启快照服务
+   bash server/servicectl.sh snapshot restart
+   ```
+
+3. 如果只想在宿主机上一条命令完成操作，例如停止快照服务：
+
+   ```sh
+   docker exec smallcar-runner-web bash -lc \
+     'cd /actions-runner/_work/smallcar/smallcar && bash server/servicectl.sh snapshot stop'
+   ```
+
+该脚本目前只内置了 `snapshot` 服务，但可以很容易扩展为管理更多容器内长跑服务（例如未来的视频处理服务），统一使用：
+
+```sh
+bash server/servicectl.sh <service> <start|stop|restart|status>
+```
+
+- 你可以自由地使用、复制、修改、合并、出版、分发本项目代码，甚至用于商业用途；
+- 唯一要求是在所有副本或重要部分中保留原始的版权声明和许可声明；
+- 本项目代码按“现状（AS IS）”提供，不提供任何形式的担保，作者不对任何使用造成的损失负责。
+
+详细条款请参见仓库根目录的 `LICENSE` 文件（MIT License 原文）。
