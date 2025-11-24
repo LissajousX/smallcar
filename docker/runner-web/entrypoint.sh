@@ -19,9 +19,12 @@ for d in /usr/share/nginx/html /var/www/html; do
   fi
 done
 
-if [ -d /var/log/nginx ]; then
-  touch /var/log/nginx/error.log
-  chown runner:runner /var/log/nginx/error.log
+if [ -d /data ]; then
+  chown -R runner:runner /data
+fi
+
+if [ -d /var/log ]; then
+  chown -R runner:runner /var/log
 fi
 
 # 启动 nginx（后台守护进程）

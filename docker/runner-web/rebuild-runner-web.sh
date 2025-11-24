@@ -11,7 +11,8 @@ HOST_PORT="8099"   # 对外暴露的端口，前端默认使用 8099，如有不
 # 持久化挂载目录（放在大容量磁盘 /mnt/sata5-4 上）
 HOST_WEBROOT="/mnt/sata5-4/dockerdisk/smallcar/webroot"           # 映射到容器内 /usr/share/nginx/html
 HOST_RUNNER_DIR="/mnt/sata5-4/dockerdisk/smallcar/actions-runner" # 映射到容器内 /actions-runner
-HOST_NGINX_LOG_DIR="/mnt/sata5-4/dockerdisk/smallcar/nginx-logs"  # 映射到容器内 /var/log/nginx，用于持久化访问/错误日志
+HOST_NGINX_LOG_DIR="/mnt/sata5-4/dockerdisk/smallcar/log/nginx"  # 映射到容器内 /var/log/nginx，用于持久化访问/错误日志
+HOST_SNAPSHOT_LOG_DIR="/mnt/sata5-4/dockerdisk/smallcar/log/snapshot"  # 映射到容器内 /var/log/snapshot
 
 # 计算仓库根目录（本脚本位于 docker/runner-web/ 下）
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,10 +21,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # 源 nginx.conf（随仓库版本控制）
 SOURCE_NGINX_CONF="${REPO_ROOT}/docker/runner-web/nginx.conf"
 
-# 持久化 nginx.conf 的位置（即便仓库目录被删除，容器仍可使用这份配置）
+# 持久化 nginx.conf 和数据的根目录（即便仓库目录被删除，容器仍可使用这些配置和数据）
 PERSIST_BASE="/mnt/sata5-4/dockerdisk/smallcar"
 HOST_NGINX_CONF_DIR="${PERSIST_BASE}/nginx"
 HOST_NGINX_CONF="${HOST_NGINX_CONF_DIR}/nginx.conf"
+HOST_DATA_DIR="${PERSIST_BASE}/data"                                # 映射到容器内 /data，用于固件和快照文件
 NGINX_CONF_CONTAINER_PATH="/etc/nginx/nginx.conf"
 
 echo "[INFO] Repo root: ${REPO_ROOT}"
@@ -47,7 +49,10 @@ if docker ps -a --format '{{.Names}}' | grep -w "${CONTAINER_NAME}" >/dev/null 2
 fi
 
 # 确保宿主机挂载目录存在
-mkdir -p "${HOST_WEBROOT}" "${HOST_RUNNER_DIR}" "${HOST_NGINX_LOG_DIR}"
+HOST_DIRS="${HOST_WEBROOT} ${HOST_RUNNER_DIR} ${HOST_NGINX_LOG_DIR} ${HOST_SNAPSHOT_LOG_DIR} ${HOST_DATA_DIR}"
+for d in $HOST_DIRS; do
+  mkdir -p "$d"
+done
 
 # 构建新镜像
 cd "${REPO_ROOT}"
@@ -63,6 +68,8 @@ docker run -d \
   -v "${HOST_WEBROOT}:/usr/share/nginx/html" \
   -v "${HOST_RUNNER_DIR}:/actions-runner" \
   -v "${HOST_NGINX_LOG_DIR}:/var/log/nginx" \
+  -v "${HOST_SNAPSHOT_LOG_DIR}:/var/log/snapshot" \
+  -v "${HOST_DATA_DIR}:/data" \
   -v "${HOST_NGINX_CONF}:${NGINX_CONF_CONTAINER_PATH}:ro" \
   "${IMAGE_NAME}"
 

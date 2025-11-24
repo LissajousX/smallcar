@@ -74,13 +74,13 @@ jobs:
           echo "Sync web/ to Nginx document roots inside Docker runner..."
           # /usr/share/nginx/html（部分发行版默认）
           if [ -d /usr/share/nginx/html ]; then
-            find /usr/share/nginx/html -mindepth 1 -maxdepth 1 ! -name firmware ! -name snapshots -exec rm -rf {} +
+            find /usr/share/nginx/html -mindepth 1 -maxdepth 1 -exec rm -rf {} +
             cp -a web/. /usr/share/nginx/html/
           fi
 
           # /var/www/html（Ubuntu/Debian 常见默认）
           if [ -d /var/www/html ]; then
-            find /var/www/html -mindepth 1 -maxdepth 1 ! -name firmware ! -name snapshots -exec rm -rf {} +
+            find /var/www/html -mindepth 1 -maxdepth 1 -exec rm -rf {} +
             cp -a web/. /var/www/html/
           fi
 
@@ -125,10 +125,9 @@ jobs:
             exit 1
           fi
           VERSION=$(git rev-parse --short HEAD)
-          for ROOT in /usr/share/nginx/html /var/www/html; do
-            if [ -d "$ROOT" ]; then
-              mkdir -p "$ROOT/firmware"
-              cp "$FIRMWARE_SRC" "$ROOT/firmware/esp32cam-${VERSION}.bin"
-              cp "$FIRMWARE_SRC" "$ROOT/firmware/esp32cam-latest.bin"
-            fi
-          done
+          DATA_ROOT="/data"
+          if [ -d "$DATA_ROOT" ]; then
+            mkdir -p "$DATA_ROOT/firmware"
+            cp "$FIRMWARE_SRC" "$DATA_ROOT/firmware/esp32cam-${VERSION}.bin"
+            cp "$FIRMWARE_SRC" "$DATA_ROOT/firmware/esp32cam-latest.bin"
+          fi
