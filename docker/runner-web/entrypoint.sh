@@ -22,6 +22,13 @@ done
 # 启动 nginx（后台守护进程）
 /usr/sbin/nginx
 
+SNAPSHOT_SERVER_DIR="/actions-runner/snapshot_server"
+SNAPSHOT_APP="${SNAPSHOT_SERVER_DIR}/snapshot_app.py"
+
+if [ -f "$SNAPSHOT_APP" ]; then
+  su runner -c "python3 $SNAPSHOT_APP --host 127.0.0.1 --port 5001" &
+fi
+
 cd /actions-runner
 
 if [ ! -f ".runner" ]; then
