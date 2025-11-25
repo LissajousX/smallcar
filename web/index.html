@@ -123,7 +123,13 @@
 
     <section class="panel panel-status">
       <div class="panel-status-header">
-        <h2>当前状态</h2>
+        <div class="panel-status-title-row">
+          <h2>当前状态</h2>
+          <div id="battery-indicator" class="battery-indicator" title="电池电量未知">
+            <span id="battery-icon" class="battery-icon battery-icon--unknown"></span>
+            <span id="battery-text">--%</span>
+          </div>
+        </div>
         <div class="status-service-icons">
           <span class="status-service-label">服务状态：</span>
           <span

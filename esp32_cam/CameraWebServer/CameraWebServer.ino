@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include <WebSocketsServer.h>
 #include <string.h>
+#include <stdlib.h>
 #include "esp_ota_ops.h"
 #include "esp_task_wdt.h"
 #include "esp_partition.h"
@@ -81,6 +82,12 @@ HardwareSerial &ControlSerial = Serial2;
 WebSocketsServer controlWs(8765);
 bool wsClientConnected = false;
 uint8_t wsClientId = 0xFF;  // 当前占用控制权的客户端编号
+
+volatile int g_battery_mv = -1;
+volatile int g_battery_percent = -1;
+volatile uint32_t g_battery_ts_ms = 0;
+static char battery_line_buf[64];
+static size_t battery_line_pos = 0;
 
 void startCameraServer();
 void setupLedFlash(int pin);
@@ -164,6 +171,71 @@ void onWsEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
       break;
     default:
       break;
+  }
+}
+
+static void parseBatteryLine(const char *line) {
+  if (!line) {
+    return;
+  }
+  if (line[0] != 'B' && line[0] != 'b') {
+    return;
+  }
+
+  const char *p = line + 1;
+  if (*p == ',') {
+    ++p;
+  }
+
+  char *endptr = NULL;
+  long mv = strtol(p, &endptr, 10);
+  if (endptr == p) {
+    return;
+  }
+
+  if (*endptr == ',') {
+    ++endptr;
+  }
+
+  char *endptr2 = NULL;
+  long percent = strtol(endptr, &endptr2, 10);
+
+  if (percent < 0) {
+    percent = 0;
+  } else if (percent > 100) {
+    percent = 100;
+  }
+
+  g_battery_mv = (int)mv;
+  g_battery_percent = (int)percent;
+  g_battery_ts_ms = millis();
+}
+
+static void pollBatteryFromUart() {
+  while (ControlSerial.available() > 0) {
+    int ch = ControlSerial.read();
+    if (ch < 0) {
+      break;
+    }
+    char c = (char)ch;
+
+    if (c == '\r') {
+      continue;
+    }
+
+    if (c == '\n') {
+      if (battery_line_pos > 0U) {
+        battery_line_buf[battery_line_pos] = '\0';
+        parseBatteryLine(battery_line_buf);
+        battery_line_pos = 0U;
+      }
+    } else {
+      if (battery_line_pos < (sizeof(battery_line_buf) - 1U)) {
+        battery_line_buf[battery_line_pos++] = c;
+      } else {
+        battery_line_pos = 0U;
+      }
+    }
   }
 }
 
@@ -392,9 +464,3 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println(":8765/ws_control");
 }
-
-void loop() {
-  controlWs.loop();
-  delay(10);
-}
-

@@ -27,6 +27,10 @@
 #include "sdkconfig.h"
 #include "camera_index.h"
 
+extern int g_battery_mv;
+extern int g_battery_percent;
+extern uint32_t g_battery_ts_ms;
+
 #if defined(ARDUINO_ARCH_ESP32) && defined(CONFIG_ARDUHAL_ESP_LOG)
 #include "esp32-hal-log.h"
 #endif
@@ -974,6 +978,42 @@ static esp_err_t status_handler(httpd_req_t *req) {
   return httpd_resp_send(req, json_response, strlen(json_response));
 }
 
+static esp_err_t battery_handler(httpd_req_t *req) {
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  int mv = g_battery_mv;
+  int percent = g_battery_percent;
+
+  uint32_t now_ms = (uint32_t)millis();
+  uint32_t age_ms = 0;
+  if (g_battery_ts_ms != 0) {
+    age_ms = now_ms - g_battery_ts_ms;
+  }
+
+  bool ok = (mv >= 0) && (percent >= 0) && (age_ms <= 15000U);
+
+  char buf[128];
+  int n = snprintf(
+      buf,
+      sizeof(buf),
+      "{\"ok\":%s,\"mv\":%d,\"percent\":%d,\"age_ms\":%lu}",
+      ok ? "true" : "false",
+      mv,
+      percent,
+      (unsigned long)age_ms);
+  if (n < 0) {
+    const char *fallback = "{\"ok\":false}";
+    return httpd_resp_send(req, fallback, strlen(fallback));
+  }
+  if ((size_t)n >= sizeof(buf)) {
+    n = (int)(sizeof(buf) - 1U);
+    buf[n] = '\0';
+  }
+
+  return httpd_resp_send(req, buf, n);
+}
+
 static esp_err_t xclk_handler(httpd_req_t *req) {
   char *buf = NULL;
   char _xclk[32];
@@ -1156,6 +1196,7 @@ void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 16;
   // 增加接收超时时间，防止 OTA 大文件传输时超时（默认 10 秒太短）
+  // 1 分钟足够大文件传输
   config.recv_wait_timeout = 60;  // 60 秒
   config.send_wait_timeout = 60;  // 60 秒
 
@@ -1344,6 +1385,19 @@ void startCameraServer() {
 #endif
   };
 
+  httpd_uri_t battery_uri = {
+    .uri = "/battery",
+    .method = HTTP_GET,
+    .handler = battery_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
   ra_filter_init(&ra_filter, 20);
 
   log_i("Starting web server on port: '%d'", config.server_port);
@@ -1351,6 +1405,7 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &index_uri);
     httpd_register_uri_handler(camera_httpd, &cmd_uri);
     httpd_register_uri_handler(camera_httpd, &status_uri);
+    httpd_register_uri_handler(camera_httpd, &battery_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
     httpd_register_uri_handler(camera_httpd, &snapshot_to_router_uri);
     httpd_register_uri_handler(camera_httpd, &bmp_uri);

@@ -28,6 +28,55 @@ body {
   gap: 12px;
 }
 
+.battery-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #e5e7eb;
+}
+
+.battery-indicator span {
+  white-space: nowrap;
+}
+
+.battery-icon {
+  position: relative;
+  display: inline-block;
+  width: 18px;
+  height: 10px;
+  box-sizing: border-box;
+  border-radius: 2px;
+  border: 2px solid currentColor;
+}
+
+.battery-icon::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: -4px;
+  width: 3px;
+  height: 4px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.battery-icon--unknown {
+  color: #6b7280;
+}
+
+.battery-icon--ok {
+  color: #22c55e;
+}
+
+.battery-icon--low {
+  color: #f97316;
+}
+
+.battery-icon--error {
+  color: #b91c1c;
+}
+
 .top-bar h1 {
   display: flex;
   align-items: center;
@@ -358,6 +407,12 @@ button.danger:hover {
 .panel-status h2 {
   font-size: 14px;
   margin: 0;
+}
+
+.panel-status-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .status-fw-build {

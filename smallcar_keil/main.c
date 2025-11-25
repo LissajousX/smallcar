@@ -3,6 +3,7 @@
 #include "ps2.h"
 #include "servo.h"
 #include "remote.h"
+#include "battery.h"
 #include <stdlib.h>
 
 #define PS2_DEBUG_TEST        0
@@ -46,6 +47,30 @@ static void USART1_SendString(const char *s)
     while (*s != '\0')
     {
         USART1_SendChar(*s++);
+    }
+}
+
+static void USART1_SendUInt(uint32_t v)
+{
+    char buf[11];
+    int pos = 0;
+
+    if (v == 0U)
+    {
+        USART1_SendChar('0');
+        return;
+    }
+
+    while (v > 0U && pos < 10)
+    {
+        buf[pos++] = (char)('0' + (v % 10U));
+        v /= 10U;
+    }
+
+    while (pos > 0)
+    {
+        pos--;
+        USART1_SendChar(buf[pos]);
     }
 }
 
@@ -122,6 +147,7 @@ int main(void)
     PS2_Init();
     Servo_Init();
     USART1_Init();
+    Battery_ADC_Init();
     Remote_Reset(&g_remote_cmd);
 
     while (1)
@@ -528,8 +554,23 @@ int main(void)
             }
         }
 
+        if ((g_loop_counter % 50U) == 0U)
+        {
+            uint32_t vbat_mv;
+            uint8_t soc;
+
+            vbat_mv = Battery_GetVoltage_mV();
+            soc = Battery_ConvertPercent(vbat_mv);
+
+            USART1_SendString("B,");
+            USART1_SendUInt(vbat_mv);
+            USART1_SendString(",");
+            USART1_SendUInt((uint32_t)soc);
+            USART1_SendString("\r\n");
+        }
+
         /* 简单节流，避免查询过快 */
         delay_ms(20);
- #endif
+#endif
     }
 }

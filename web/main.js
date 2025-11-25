@@ -3,6 +3,8 @@
   const wsBtn = document.getElementById("ws-connect-btn");
   const wsStatus = document.getElementById("ws-status");
   const appTitleEl = document.getElementById("app-title");
+  const batteryText = document.getElementById("battery-text");
+  const batteryIcon = document.getElementById("battery-icon");
 
   const throttleInput = document.getElementById("throttle");
   const steerInput = document.getElementById("steer");
@@ -623,8 +625,65 @@
     }
   }
 
+  function setBatteryIndicator(state) {
+    if (!batteryIcon || !batteryText) {
+      return;
+    }
+
+    let percent = null;
+    let mv = null;
+    let ok = false;
+
+    if (state && typeof state.percent === "number" && state.percent >= 0) {
+      percent = state.percent;
+    }
+    if (state && typeof state.mv === "number" && state.mv >= 0) {
+      mv = state.mv;
+    }
+    if (state && state.ok) {
+      ok = true;
+    }
+
+    batteryIcon.classList.remove(
+      "battery-icon--unknown",
+      "battery-icon--ok",
+      "battery-icon--low",
+      "battery-icon--error",
+    );
+
+    let cls = "battery-icon--unknown";
+    let text = "--%";
+    let title = "电池电量未知";
+
+    if (!state) {
+      // 保持默认未知
+    } else if (!ok) {
+      cls = "battery-icon--error";
+      text = "--%";
+      title = "无法获取电池电量";
+    } else if (percent != null) {
+      text = `${percent}%`;
+      if (percent <= 20) {
+        cls = "battery-icon--low";
+      } else {
+        cls = "battery-icon--ok";
+      }
+      if (mv != null) {
+        title = `电压 ${mv} mV，约 ${percent}%`;
+      } else {
+        title = `电量约 ${percent}%`;
+      }
+    }
+
+    batteryIcon.classList.add("battery-icon", cls);
+    batteryText.textContent = text;
+    batteryText.title = title;
+    batteryIcon.title = title;
+  }
+
   let snapshotHealthTimer = null;
   let videoHealthTimer = null;
+  let batteryPollTimer = null;
 
   function startSnapshotHealthPolling() {
     if (typeof fetch !== "function") {
@@ -706,6 +765,54 @@
       clearInterval(videoHealthTimer);
     }
     videoHealthTimer = setInterval(poll, 15000);
+  }
+
+  function startBatteryPolling() {
+    if (typeof fetch !== "function") {
+      return;
+    }
+
+    const poll = async () => {
+      const base = buildCameraBaseFromVideoUrl();
+      if (!base) {
+        setBatteryIndicator(null);
+        return;
+      }
+      try {
+        const resp = await fetch(`${base}/battery?t=${Date.now()}`, {
+          mode: "cors",
+          cache: "no-store",
+        });
+        if (!resp.ok) {
+          setBatteryIndicator({ ok: false });
+          return;
+        }
+        let data = null;
+        try {
+          data = await resp.json();
+        } catch (e) {}
+
+        if (!data) {
+          setBatteryIndicator({ ok: false });
+          return;
+        }
+
+        setBatteryIndicator({
+          ok: !!data.ok,
+          mv: typeof data.mv === "number" ? data.mv : -1,
+          percent: typeof data.percent === "number" ? data.percent : -1,
+          age_ms: typeof data.age_ms === "number" ? data.age_ms : 0,
+        });
+      } catch (e) {
+        setBatteryIndicator({ ok: false });
+      }
+    };
+
+    poll();
+    if (batteryPollTimer) {
+      clearInterval(batteryPollTimer);
+    }
+    batteryPollTimer = setInterval(poll, 5000);
   }
 
   async function triggerSnapshotToRouter() {
@@ -2245,6 +2352,7 @@
     loadCameraStatus();
     startSnapshotHealthPolling();
     startVideoHealthPolling();
+    startBatteryPolling();
   });
   window.addEventListener("orientationchange", () => {
     scrollVideoIntoViewIfLandscape();
