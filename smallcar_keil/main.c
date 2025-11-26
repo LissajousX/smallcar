@@ -4,21 +4,28 @@
 #include "servo.h"
 #include "remote.h"
 #include "battery.h"
+#include "buzzer.h"
 #include <stdlib.h>
 
-#define PS2_DEBUG_TEST        0
-#define YAW_MIN_ANGLE         15U
-#define YAW_MAX_ANGLE         165U
-#define PITCH_MIN_ANGLE       15U
-#define PITCH_MAX_ANGLE       150U
-#define SERVO_STEP_ANGLE      2U
-#define UART_RX_BUF_SIZE      64U
-#define REMOTE_TIMEOUT_LOOPS  50U
+#define PS2_DEBUG_TEST                 0
+#define YAW_MIN_ANGLE                  15U
+#define YAW_MAX_ANGLE                  165U
+#define PITCH_MIN_ANGLE                15U
+#define PITCH_MAX_ANGLE                150U
+#define SERVO_STEP_ANGLE               2U
+#define UART_RX_BUF_SIZE               64U
+#define REMOTE_TIMEOUT_LOOPS           50U
+#define LOW_BATTERY_WARN_PERCENT       20U
+#define LOW_BATTERY_BEEP_INTERVAL_LOOPS  (60U * 50U)
+#define PS2_OFFLINE_TIMEOUT_LOOPS      (5U * 50U)
 
 static volatile char uart_rx_buf[UART_RX_BUF_SIZE];
 static volatile uint8_t uart_rx_pos = 0U;
 static volatile RemoteCmd_t g_remote_cmd = {0};
 static volatile uint32_t g_loop_counter = 0U;
+static uint32_t g_last_lowbat_beep_loop = 0U;
+static uint8_t g_ps2_online = 0U;
+static uint32_t g_ps2_last_ok_tick = 0U;
 
 static void delay_ms(uint32_t ms)
 {
@@ -148,7 +155,34 @@ int main(void)
     Servo_Init();
     USART1_Init();
     Battery_ADC_Init();
+    Buzzer_Init();
     Remote_Reset(&g_remote_cmd);
+
+    {
+        uint8_t ps2_ok = 0U;
+        uint8_t i;
+
+        for (i = 0U; i < 50U; i++)
+        {
+            ps2_key_serch();
+            if (Data[1] == 0x73U)
+            {
+                ps2_ok = 1U;
+                g_ps2_online = 1U;
+                break;
+            }
+            delay_ms(10U);
+        }
+
+        if (ps2_ok)
+        {
+            Buzzer_StartPowerOnOkBeep();
+        }
+        else
+        {
+            Buzzer_StartErrorBeep();
+        }
+    }
 
     while (1)
     {
@@ -163,6 +197,16 @@ int main(void)
 #else
         /* 扫描按键/摇杆数据 */
         ps2_key_serch();
+
+        if (Data[1] == 0x73U)
+        {
+            if (!g_ps2_online)
+            {
+                Buzzer_StartShortSingleBeep();
+            }
+            g_ps2_online = 1U;
+            g_ps2_last_ok_tick = g_loop_counter;
+        }
 
         if (Data[1] == 0x73U)
         {
@@ -567,7 +611,23 @@ int main(void)
             USART1_SendString(",");
             USART1_SendUInt((uint32_t)soc);
             USART1_SendString("\r\n");
+
+            if (soc <= LOW_BATTERY_WARN_PERCENT)
+            {
+                if ((g_last_lowbat_beep_loop == 0U) ||
+                    ((g_loop_counter - g_last_lowbat_beep_loop) >= LOW_BATTERY_BEEP_INTERVAL_LOOPS))
+                {
+                    Buzzer_StartShortTripleBeep();
+                    g_last_lowbat_beep_loop = g_loop_counter;
+                }
+            }
+            else
+            {
+                g_last_lowbat_beep_loop = 0U;
+            }
         }
+
+        Buzzer_Task();
 
         /* 简单节流，避免查询过快 */
         delay_ms(20);
