@@ -127,6 +127,7 @@
   const snapshotUploadStatus = document.getElementById("snapshot-upload-status");
   const snapshotHealthStatus = document.getElementById("snapshot-health-status");
   const videoHealthStatus = document.getElementById("video-health-status");
+  const openSetupBtn = document.getElementById("btn-open-setup");
 
   const ovStatusThrottle = document.getElementById("ov-status-throttle");
   const ovStatusSteer = document.getElementById("ov-status-steer");
@@ -158,9 +159,7 @@
   };
 
   const VIDEO_PLACEHOLDER = "placeholder-video.svg";
-  const DEFAULT_ROUTER_BASE = "http://192.168.31.1:8099";
-  const SNAPSHOT_DEFAULT_HOST = "192.168.31.1";
-  const SNAPSHOT_DEFAULT_PORT = 8099;
+  const DEFAULT_ROUTER_BASE_FALLBACK = "http://192.168.31.1:8099";
 
   const APP_CONFIG = (function () {
     const globalCfg = window.SMALLCAR_CONFIG || {};
@@ -184,27 +183,138 @@
     return { profileName: activeName, get };
   })();
 
+  const APP_MODE = (function () {
+    const mode = APP_CONFIG.get("mode", APP_CONFIG.profileName || "geek");
+    const name = mode === "product" ? "product" : "geek";
+    return {
+      name,
+      isProduct: name === "product",
+      isGeek: name !== "product",
+    };
+  })();
+
+  const DEFAULT_ROUTER_BASE = APP_CONFIG.get(
+    "defaultRouterBase",
+    DEFAULT_ROUTER_BASE_FALLBACK,
+  );
+
+  let SNAPSHOT_DEFAULT_HOST = "192.168.31.1";
+  let SNAPSHOT_DEFAULT_PORT = 8099;
+  try {
+    const u = new URL(DEFAULT_ROUTER_BASE);
+    if (u.hostname) {
+      SNAPSHOT_DEFAULT_HOST = u.hostname;
+    }
+    if (u.port) {
+      const p = parseInt(u.port, 10);
+      if (!Number.isNaN(p) && p > 0 && p < 65536) {
+        SNAPSHOT_DEFAULT_PORT = p;
+      }
+    }
+  } catch (e) {}
+
   if (wsUrlInput) {
-    const defWs = APP_CONFIG.get("defaultWsUrl", wsUrlInput.value || "");
+    let defWs = wsUrlInput.value || "";
+    if (APP_MODE.isProduct) {
+      try {
+        const loc = window.location || {};
+        const proto = loc.protocol === "https:" ? "wss:" : "ws:";
+        const host = loc.hostname || "smallcar.local";
+        defWs = `${proto}//${host}:8765/ws_control`;
+      } catch (e) {}
+    } else {
+      defWs = APP_CONFIG.get("defaultWsUrl", wsUrlInput.value || defWs);
+    }
     if (!wsUrlInput.value && defWs) {
       wsUrlInput.value = defWs;
     }
   }
 
   if (videoUrlInput) {
-    const defVideo = APP_CONFIG.get("defaultVideoUrl", videoUrlInput.value || "");
+    let defVideo = videoUrlInput.value || "";
+    if (APP_MODE.isProduct) {
+      try {
+        const loc = window.location || {};
+        const host = loc.hostname || "smallcar.local";
+        defVideo = `http://${host}:81/stream`;
+      } catch (e) {}
+    } else {
+      defVideo = APP_CONFIG.get("defaultVideoUrl", videoUrlInput.value || defVideo);
+    }
     if (!videoUrlInput.value && defVideo) {
       videoUrlInput.value = defVideo;
     }
   }
 
   if (routerBaseInput) {
-    const defRouter = APP_CONFIG.get(
-      "defaultRouterBase",
-      routerBaseInput.value || DEFAULT_ROUTER_BASE,
-    );
+    const defRouter = routerBaseInput.value || DEFAULT_ROUTER_BASE;
     if (defRouter) {
       routerBaseInput.value = defRouter;
+    }
+  }
+
+  if (APP_MODE.isProduct) {
+    if (otaFileInput) {
+      otaFileInput.style.display = "none";
+    }
+    if (otaUploadBtn) {
+      otaUploadBtn.style.display = "none";
+    }
+    if (otaOpenRepoBtn) {
+      otaOpenRepoBtn.style.display = "none";
+    }
+
+    if (routerBaseInput && routerBaseInput.parentElement) {
+      routerBaseInput.parentElement.style.display = "none";
+    }
+
+    try {
+      const wsLabelEl = document.querySelector(".ws-label");
+      if (wsLabelEl) {
+        wsLabelEl.style.display = "none";
+      }
+    } catch (e) {}
+    if (wsBtn) {
+      wsBtn.style.display = "none";
+    }
+    if (wsStatus) {
+      wsStatus.style.display = "none";
+    }
+
+    try {
+      const videoUrlLabel = document.querySelector(".video-url-label");
+      if (videoUrlLabel) {
+        videoUrlLabel.style.display = "none";
+      }
+    } catch (e) {}
+    if (videoLoadBtn) {
+      videoLoadBtn.style.display = "none";
+    }
+
+    if (camAdvancedBtn) {
+      camAdvancedBtn.style.display = "none";
+    }
+
+    if (recordBtn) {
+      recordBtn.style.display = "none";
+    }
+    if (videoRecordTimer) {
+      videoRecordTimer.style.display = "none";
+    }
+
+    if (snapshotUploadStatus) {
+      snapshotUploadStatus.style.display = "none";
+    }
+
+    try {
+      const serviceIcons = document.querySelector(".status-service-icons");
+      if (serviceIcons) {
+        serviceIcons.style.display = "none";
+      }
+    } catch (e) {}
+  } else {
+    if (openSetupBtn) {
+      openSetupBtn.style.display = "none";
     }
   }
 
@@ -585,6 +695,52 @@
     if (camAdvancedApplyStatus) {
       setCamAdvancedApplyStatus("applied");
     }
+  }
+
+  function applyDefaultPresetForProduct() {
+    if (!APP_MODE.isProduct) {
+      return;
+    }
+    const base = buildCameraBaseFromVideoUrl();
+    if (!base || typeof fetch !== "function") {
+      return;
+    }
+    try {
+      const url = `${base}/control?var=preset&val=normal`;
+      fetch(url, { mode: "no-cors" }).catch(() => {});
+    } catch (e) {}
+  }
+
+  function isApHost() {
+    try {
+      const host = window.location && window.location.hostname;
+      return host === "192.168.4.1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function maybeShowWifiSetupHintOnAp() {
+    if (!APP_MODE.isProduct || !isApHost() || !openSetupBtn) {
+      return;
+    }
+    if (typeof fetch !== "function") {
+      alert("当前小车通过自带热点工作，如需配置家庭 Wi‑Fi，请点击右上角的“Wifi配网”按钮。");
+      return;
+    }
+    try {
+      const resp = await fetch("/wifi_state", { cache: "no-store" });
+      if (!resp.ok) {
+        alert("当前小车可能尚未成功接入家庭 Wi‑Fi，如需配置，请点击右上角的“Wifi配网”按钮。");
+        return;
+      }
+      const data = await resp.json();
+      const staConfigured = !!data.sta_configured;
+      const staConnected = !!data.sta_connected;
+      if (!staConfigured || !staConnected) {
+        alert("当前小车尚未成功接入家庭 Wi‑Fi，如需配置，请点击右上角的“Wifi配网”按钮。");
+      }
+    } catch (e) {}
   }
 
   function setStatus(text, cls) {
@@ -1758,6 +1914,14 @@
     });
   }
 
+  if (openSetupBtn) {
+    openSetupBtn.addEventListener("click", () => {
+      try {
+        window.location.href = "setup.html";
+      } catch (e) {}
+    });
+  }
+
   wsBtn.addEventListener("click", () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       disconnect();
@@ -2036,7 +2200,9 @@
           snapshotThumb.src = tsUrl;
         }
 
-        triggerSnapshotToRouter();
+        if (APP_MODE.isGeek) {
+          triggerSnapshotToRouter();
+        }
       });
     }
 
@@ -2051,6 +2217,11 @@
 
         if (!videoActive) {
           alert("请先加载视频流，再开始录像");
+          return;
+        }
+
+        if (!APP_MODE.isGeek) {
+          // 产品模式不提供录像功能
           return;
         }
 
@@ -2396,9 +2567,19 @@
       setCamAdvancedApplyStatus("idle");
     }
     loadCameraStatus();
-    startSnapshotHealthPolling();
-    startVideoHealthPolling();
+    if (APP_MODE.isGeek) {
+      startSnapshotHealthPolling();
+      startVideoHealthPolling();
+    }
     startBatteryPolling();
+
+    if (APP_MODE.isProduct) {
+      try {
+        connect();
+      } catch (e) {}
+      applyDefaultPresetForProduct();
+      maybeShowWifiSetupHintOnAp();
+    }
   });
   window.addEventListener("orientationchange", () => {
     scrollVideoIntoViewIfLandscape();

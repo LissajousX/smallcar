@@ -13,7 +13,7 @@ body {
 
 .top-bar {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
@@ -26,6 +26,21 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .top-bar {
+    flex-wrap: nowrap;
+  }
+
+  .top-bar h1 {
+    font-size: 16px;
+  }
+
+  .top-right {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
 }
 
 .battery-indicator {

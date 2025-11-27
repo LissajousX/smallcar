@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SmallCar 配网向导</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  </head>
+  <body>
+    <header class="top-bar">
+      <h1>
+        <img src="favicon.svg" alt="SmallCar" class="logo-icon" />
+        <span>SmallCar 配网向导</span>
+      </h1>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <h2>当前网络状态</h2>
+        <p id="wifi-state-text">正在获取小车网络状态...</p>
+        <div id="wifi-ap-info" class="field"></div>
+        <div id="wifi-sta-info" class="field"></div>
+      </section>
+
+      <section class="panel">
+        <h2>配置家庭 Wi‑Fi</h2>
+        <div class="field">
+          <label for="ssid-select">附近 Wi‑Fi：</label>
+          <select id="ssid-select" class="top-pill-input">
+            <option value="">（点击右侧“扫描”获取列表）</option>
+          </select>
+          <button id="btn-scan" class="small-btn">扫描</button>
+        </div>
+        <div class="field">
+          <label for="ssid-manual">或手动输入 Wi‑Fi 名称：</label>
+          <input
+            id="ssid-manual"
+            class="top-pill-input"
+            type="text"
+            placeholder="如 MyHomeWiFi"
+          />
+        </div>
+        <div class="field">
+          <label for="wifi-password">Wi‑Fi 密码：</label>
+          <input
+            id="wifi-password"
+            class="top-pill-input"
+            type="password"
+            autocomplete="off"
+          />
+          <label class="toggle">
+            <input id="show-password" type="checkbox" />
+            <span>显示密码</span>
+          </label>
+        </div>
+        <div class="field">
+          <button id="btn-save" class="small-btn">保存并连接</button>
+        </div>
+        <div id="wifi-status-msg" class="hint"></div>
+      </section>
+
+      <section class="panel" id="next-steps" style="display: none">
+        <h2>下一步怎么用？</h2>
+        <p id="next-steps-text"></p>
+      </section>
+    </main>
+
+    <script src="setup.js?v=20251127"></script>
+  </body>
+</html>
