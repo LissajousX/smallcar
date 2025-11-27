@@ -162,6 +162,52 @@
   const SNAPSHOT_DEFAULT_HOST = "192.168.31.1";
   const SNAPSHOT_DEFAULT_PORT = 8099;
 
+  const APP_CONFIG = (function () {
+    const globalCfg = window.SMALLCAR_CONFIG || {};
+    const profiles = globalCfg.profiles || {};
+    const activeName =
+      globalCfg.activeProfile && profiles[globalCfg.activeProfile]
+        ? globalCfg.activeProfile
+        : Object.keys(profiles)[0] || null;
+    const active = activeName ? profiles[activeName] : globalCfg;
+
+    function get(key, fallback) {
+      if (active && typeof active[key] === "string" && active[key]) {
+        return active[key];
+      }
+      if (typeof globalCfg[key] === "string" && globalCfg[key]) {
+        return globalCfg[key];
+      }
+      return fallback;
+    }
+
+    return { profileName: activeName, get };
+  })();
+
+  if (wsUrlInput) {
+    const defWs = APP_CONFIG.get("defaultWsUrl", wsUrlInput.value || "");
+    if (!wsUrlInput.value && defWs) {
+      wsUrlInput.value = defWs;
+    }
+  }
+
+  if (videoUrlInput) {
+    const defVideo = APP_CONFIG.get("defaultVideoUrl", videoUrlInput.value || "");
+    if (!videoUrlInput.value && defVideo) {
+      videoUrlInput.value = defVideo;
+    }
+  }
+
+  if (routerBaseInput) {
+    const defRouter = APP_CONFIG.get(
+      "defaultRouterBase",
+      routerBaseInput.value || DEFAULT_ROUTER_BASE,
+    );
+    if (defRouter) {
+      routerBaseInput.value = defRouter;
+    }
+  }
+
   const DRIVE_SPEED = 80;
   const DRIVE_STEER_FULL = 100;
   const DRIVE_STEER_DIAG = 60;
