@@ -519,9 +519,6 @@ void setup() {
   if (staConfigured) {
     staSsidToUse = staSsid;
     staPasswordToUse = staPassword;
-  } else {
-    staSsidToUse = ssid;
-    staPasswordToUse = password;
   }
 
   if (staSsidToUse && staSsidToUse[0] != '\0') {
