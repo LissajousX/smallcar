@@ -1930,107 +1930,101 @@
     }
   });
 
-  // 初始 UI 状态
-  updateLabels();
-  updateCameraAdvancedLabels();
-  updateCamPresetDesc();
-
-  // 视频预览加载 / 停止 按钮（单键切换）+ 拍照 + 补光灯
-  if (videoLoadBtn && videoUrlInput && videoView) {
-    function updateVideoRecordTimer() {
-      if (!videoRecordStartTime || !videoRecording || !videoRecordTimer) {
-        if (videoRecordTimer) {
-          videoRecordTimer.classList.remove("visible");
-          videoRecordTimer.textContent = "";
-        }
-        if (videoRecordTimerId) {
-          clearInterval(videoRecordTimerId);
-          videoRecordTimerId = null;
-        }
-        return;
+  function updateVideoRecordTimer() {
+    if (!videoRecordStartTime || !videoRecording || !videoRecordTimer) {
+      if (videoRecordTimer) {
+        videoRecordTimer.classList.remove("visible");
+        videoRecordTimer.textContent = "";
       }
-
-      const elapsedSec = Math.floor((Date.now() - videoRecordStartTime) / 1000);
-      const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
-      const ss = String(elapsedSec % 60).padStart(2, "0");
-
-      videoRecordTimer.textContent = `REC ${mm}:${ss}`;
-      videoRecordTimer.classList.add("visible");
+      if (videoRecordTimerId) {
+        clearInterval(videoRecordTimerId);
+        videoRecordTimerId = null;
+      }
+      return;
     }
 
-    async function stopRecordingIfNeeded(options = { showError: false }) {
-      if (!videoRecording) {
-        return;
+    const elapsedSec = Math.floor((Date.now() - videoRecordStartTime) / 1000);
+    const mm = String(Math.floor(elapsedSec / 60)).padStart(2, "0");
+    const ss = String(elapsedSec % 60).padStart(2, "0");
+
+    videoRecordTimer.textContent = `REC ${mm}:${ss}`;
+    videoRecordTimer.classList.add("visible");
+  }
+
+  async function stopRecordingIfNeeded(options = { showError: false }) {
+    if (!videoRecording) {
+      return;
+    }
+
+    const routerBase = getRouterBase();
+    if (!routerBase || typeof fetch !== "function") {
+      videoRecording = false;
+      if (recordBtn) {
+        recordBtn.classList.remove("recording");
       }
+      return;
+    }
 
-      const routerBase = getRouterBase();
-      if (!routerBase || typeof fetch !== "function") {
-        videoRecording = false;
-        if (recordBtn) {
-          recordBtn.classList.remove("recording");
-        }
-        return;
-      }
-
-      try {
-        const resp = await fetch(`${routerBase}/record_stop`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          mode: "cors",
-          body: JSON.stringify({}),
-        });
-        if (!resp.ok) {
-          if (options && options.showError) {
-            alert(`停止录像失败 (${resp.status})`);
-          }
-          return;
-        }
-        let data = null;
-        try {
-          data = await resp.json();
-        } catch (e) {}
-
-        if (data && data.ok && data.video && data.thumb) {
-          lastMedia.type = "video";
-          lastMedia.videoUrl = data.video;
-          lastMedia.thumbUrl = data.thumb;
-
-          if (snapshotThumb) {
-            snapshotThumb.src = data.thumb;
-          }
-
-          setSnapshotUploadStatus("ok", "视频录制完成");
-        } else if (options && options.showError) {
-          setSnapshotUploadStatus("error", "视频录制结果异常");
-        }
-      } catch (e) {
+    try {
+      const resp = await fetch(`${routerBase}/record_stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        mode: "cors",
+        body: JSON.stringify({}),
+      });
+      if (!resp.ok) {
         if (options && options.showError) {
-          setSnapshotUploadStatus("error", "停止录像时网络异常");
+          alert(`停止录像失败 (${resp.status})`);
         }
         return;
-      } finally {
-        videoRecording = false;
-        if (recordBtn) {
-          recordBtn.classList.remove("recording");
+      }
+      let data = null;
+      try {
+        data = await resp.json();
+      } catch (e) {}
+
+      if (data && data.ok && data.video && data.thumb) {
+        lastMedia.type = "video";
+        lastMedia.videoUrl = data.video;
+        lastMedia.thumbUrl = data.thumb;
+
+        if (snapshotThumb) {
+          snapshotThumb.src = data.thumb;
         }
-        if (videoBox) {
-          videoBox.classList.remove("recording");
-        }
-        videoRecordStartTime = null;
-        if (videoRecordTimer) {
-          videoRecordTimer.classList.remove("visible");
-          videoRecordTimer.textContent = "";
-        }
-        if (videoRecordTimerId) {
-          clearInterval(videoRecordTimerId);
-          videoRecordTimerId = null;
-        }
+
+        setSnapshotUploadStatus("ok", "视频录制完成");
+      } else if (options && options.showError) {
+        setSnapshotUploadStatus("error", "视频录制结果异常");
+      }
+    } catch (e) {
+      if (options && options.showError) {
+        setSnapshotUploadStatus("error", "停止录像时网络异常");
+      }
+      return;
+    } finally {
+      videoRecording = false;
+      if (recordBtn) {
+        recordBtn.classList.remove("recording");
+      }
+      if (videoBox) {
+        videoBox.classList.remove("recording");
+      }
+      videoRecordStartTime = null;
+      if (videoRecordTimer) {
+        videoRecordTimer.classList.remove("visible");
+        videoRecordTimer.textContent = "";
+      }
+      if (videoRecordTimerId) {
+        clearInterval(videoRecordTimerId);
+        videoRecordTimerId = null;
       }
     }
+  }
 
-    const stopVideo = async () => {
-      await stopRecordingIfNeeded({ showError: false });
+  const stopVideo = async () => {
+    await stopRecordingIfNeeded({ showError: false });
 
+    if (!APP_MODE.isProduct) {
       const routerBase = getRouterBase();
       // 优先通知路由器停止拉流
       if (routerBase && typeof fetch === "function") {
@@ -2042,56 +2036,34 @@
           }).catch(() => {});
         } catch (e) {}
       }
+    }
 
-      videoView.src = VIDEO_PLACEHOLDER;
-      videoActive = false;
-      videoPaused = false;
-      videoLoadBtn.textContent = "加载";
-      if (videoPlayOverlay) {
-        videoPlayOverlay.classList.remove("hidden");
-      }
-      if (videoPlayControls) {
-        videoPlayControls.classList.remove("visible");
-      }
-      if (videoPlayToggle) {
-        videoPlayToggle.classList.remove("playing");
-      }
-      resetLightUI();
-    };
+    videoView.src = VIDEO_PLACEHOLDER;
+    videoActive = false;
+    videoPaused = false;
+    videoLoadBtn.textContent = "加载";
+    if (videoPlayOverlay) {
+      videoPlayOverlay.classList.remove("hidden");
+    }
+    if (videoPlayControls) {
+      videoPlayControls.classList.remove("visible");
+    }
+    if (videoPlayToggle) {
+      videoPlayToggle.classList.remove("playing");
+    }
+    resetLightUI();
+  };
 
-    const loadVideo = async () => {
-      const url = videoUrlInput.value.trim();
-      if (!url) {
-        await stopVideo();
-        return;
-      }
+  const loadVideo = async () => {
+    const url = videoUrlInput.value.trim();
+    if (!url) {
+      await stopVideo();
+      return;
+    }
 
-      const routerBase = getRouterBase();
-      if (!routerBase || typeof fetch !== "function") {
-        alert("请先填写路由器地址，例如 http://192.168.31.1:8099");
-        return;
-      }
-
-      try {
-        const resp = await fetch(`${routerBase}/start_stream`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          mode: "cors",
-          body: JSON.stringify({ stream_url: url }),
-        });
-        if (!resp.ok) {
-          alert(`无法在路由器上启动视频流 (${resp.status})`);
-          await stopVideo();
-          return;
-        }
-      } catch (e) {
-        alert("无法连接视频服务，请检查路由器地址和网络");
-        await stopVideo();
-        return;
-      }
-
-      // 使用路由器统一推流的地址
-      videoView.src = `${routerBase}/router_stream?t=${Date.now()}`;
+    if (APP_MODE.isProduct) {
+      const tsUrl = `${url}${url.includes("?") ? "&" : "?"}t=${Date.now()}`;
+      videoView.src = tsUrl;
       videoActive = true;
       videoPaused = false;
       videoLoadBtn.textContent = "停止";
@@ -2104,114 +2076,104 @@
       if (videoPlayToggle) {
         videoPlayToggle.classList.add("playing");
       }
-    };
+      return;
+    }
 
-    const pauseVideo = async () => {
-      const routerBase = getRouterBase();
-      if (routerBase && typeof fetch === "function") {
-        try {
-          await fetch(`${routerBase}/stop_stream`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            mode: "cors",
-          }).catch(() => {});
-        } catch (e) {}
-      }
+    const routerBase = getRouterBase();
+    if (!routerBase || typeof fetch !== "function") {
+      alert("请先填写路由器地址，例如 http://192.168.31.1:8099");
+      return;
+    }
 
-      videoActive = false;
-      videoPaused = true;
-      videoLoadBtn.textContent = "加载";
-      if (videoPlayOverlay) {
-        videoPlayOverlay.classList.remove("hidden");
-      }
-      if (videoPlayToggle) {
-        videoPlayToggle.classList.remove("playing");
-      }
-      // 不修改 videoView.src，这样可以保留最后一帧作为暂停画面
-    };
-
-    // 如果加载失败，回退到占位图；但在手动暂停场景下忽略错误
-    videoView.addEventListener("error", () => {
-      if (videoPaused) {
+    try {
+      const resp = await fetch(`${routerBase}/start_stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        mode: "cors",
+        body: JSON.stringify({ stream_url: url }),
+      });
+      if (!resp.ok) {
+        alert(`无法在路由器上启动视频流 (${resp.status})`);
+        await stopVideo();
         return;
       }
-      stopVideo();
-    });
+    } catch (e) {
+      alert("无法连接视频服务，请检查路由器地址和网络");
+      await stopVideo();
+      return;
+    }
 
-    videoLoadBtn.addEventListener("click", () => {
-      // 当前是流就停止，当前是占位图就加载
-      if (videoActive && !videoView.src.includes(VIDEO_PLACEHOLDER)) {
-        stopVideo();
+    videoView.src = `${routerBase}/router_stream`;
+    videoActive = true;
+    videoPaused = false;
+    videoLoadBtn.textContent = "停止";
+    if (videoPlayOverlay) {
+      videoPlayOverlay.classList.add("hidden");
+    }
+    if (videoPlayControls) {
+      videoPlayControls.classList.add("visible");
+    }
+    if (videoPlayToggle) {
+      videoPlayToggle.classList.add("playing");
+    }
+  };
+
+  videoLoadBtn.addEventListener("click", () => {
+    if (videoActive && !videoView.src.includes(VIDEO_PLACEHOLDER)) {
+      stopVideo();
+    } else {
+      loadVideo();
+    }
+  });
+
+  if (videoPlayBtn) {
+    videoPlayBtn.addEventListener("click", () => {
+      if (!videoActive) {
+        loadVideo();
+      }
+    });
+  }
+
+  if (videoPlayToggle) {
+    videoPlayToggle.addEventListener("click", () => {
+      if (videoActive) {
+        pauseVideo();
       } else {
         loadVideo();
       }
     });
+  }
 
-    if (videoPlayBtn) {
-      videoPlayBtn.addEventListener("click", () => {
-        if (!videoActive) {
-          loadVideo();
+  if (snapshotBtn) {
+    snapshotBtn.addEventListener("click", () => {
+      const url = videoUrlInput.value.trim();
+      if (!url) {
+        alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
+        return;
+      }
+
+      if (!videoActive) {
+        alert("请先加载视频流，再拍照");
+        return;
+      }
+
+      let captureUrl = null;
+      try {
+        const u = new URL(url, window.location.href);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          throw new Error("invalid protocol");
         }
-      });
-    }
+        captureUrl = `${u.protocol}//${u.hostname}/capture`;
+      } catch (e) {
+        alert("视频流地址格式不正确，请检查，例如 http://192.168.31.140:81/stream");
+        return;
+      }
 
-    if (videoPlayToggle) {
-      videoPlayToggle.addEventListener("click", () => {
-        if (videoActive) {
-          pauseVideo();
-        } else {
-          loadVideo();
-        }
-      });
-    }
+      const tsUrl = `${captureUrl}?t=${Date.now()}`;
 
-    // 拍照按钮：根据视频流地址推导 ESP32-CAM 的 /capture 地址，并触发上传到路由器
-    if (snapshotBtn) {
-      snapshotBtn.addEventListener("click", () => {
-        const url = videoUrlInput.value.trim();
-        if (!url) {
-          alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
-          return;
-        }
-
-        if (!videoActive) {
-          alert("请先加载视频流，再拍照");
-          return;
-        }
-
-        let captureUrl = null;
-        try {
-          const u = new URL(url, window.location.href);
-          if (u.protocol !== "http:" && u.protocol !== "https:") {
-            throw new Error("invalid protocol");
-          }
-          // ESP32-CAM 默认 /capture 在 HTTP 主端口（通常是 80），与 :81/stream 分开
-          captureUrl = `${u.protocol}//${u.hostname}/capture`;
-        } catch (e) {
-          alert("视频流地址格式不正确，请检查，例如 http://192.168.31.140:81/stream");
-          return;
-        }
-
-        // 为避免浏览器缓存，附加时间戳参数
-        const tsUrl = `${captureUrl}?t=${Date.now()}`;
-
-        // 仅更新当前状态右侧缩略图预览
-        if (snapshotThumb) {
-          snapshotThumb.src = tsUrl;
-        }
-
-        if (APP_MODE.isGeek) {
-          triggerSnapshotToRouter();
-        }
-      });
-    }
-
-    // 视频录制按钮：通过路由器统一录制，可变时长，开始/停止切换
-    if (recordBtn) {
-      recordBtn.addEventListener("click", async () => {
-        const url = videoUrlInput.value.trim();
-        if (!url) {
-          alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
+      if (snapshotThumb) {
+        snapshotThumb.src = tsUrl;
+      }
           return;
         }
 
