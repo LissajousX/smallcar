@@ -616,3 +616,9 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println(":8765/ws_control");
 }
+
+void loop() {
+  pollBatteryFromUart();
+  controlWs.loop();
+  delay(10);
+}
