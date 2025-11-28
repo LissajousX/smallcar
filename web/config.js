@@ -3,7 +3,7 @@
 
 window.SMALLCAR_CONFIG = {
   // 当前激活的 profile 名称。CI 可以在构建时改成其它值，例如 "product"。
-  activeProfile: "product",
+  activeProfile: "geek",
 
   // 各环境默认配置
   profiles: {
