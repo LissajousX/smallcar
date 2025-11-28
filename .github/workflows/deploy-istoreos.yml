@@ -84,10 +84,14 @@ jobs:
         run: |
           set -e
           cd esp32_cam/CameraWebServer
+          python3 tools/embed_product_frontend.py
           SHORT_SHA=$(git rev-parse --short HEAD)
           export FW_VERSION="${GITHUB_REF_NAME:-dev}-${SHORT_SHA}"
           echo "FW_VERSION=$FW_VERSION"
-          pio run -e esp32cam
+          # 一次构建两种固件：
+          # - env:esp32cam          -> geek 固件（默认环境）
+          # - env:esp32cam_product  -> product 固件（配网/AP+STA）
+          pio run -e esp32cam -e esp32cam_product
 
       - name: Deploy static web into Nginx document root
         run: |
@@ -244,15 +248,37 @@ jobs:
         if: steps.esp32_changes.outputs.changed == 'true'
         run: |
           set -e
-          FIRMWARE_SRC="esp32_cam/CameraWebServer/.pio/build/esp32cam/firmware.bin"
-          if [ ! -f "$FIRMWARE_SRC" ]; then
-            echo "Firmware not found: $FIRMWARE_SRC"
+          GEEK_SRC="esp32_cam/CameraWebServer/.pio/build/esp32cam/firmware.bin"
+          PROD_SRC="esp32_cam/CameraWebServer/.pio/build/esp32cam_product/firmware.bin"
+
+          if [ ! -f "$GEEK_SRC" ]; then
+            echo "Geek firmware not found: $GEEK_SRC" >&2
             exit 1
           fi
+
+          if [ ! -f "$PROD_SRC" ]; then
+            echo "Product firmware not found: $PROD_SRC" >&2
+            exit 1
+          fi
+
           VERSION=$(git rev-parse --short HEAD)
           DATA_ROOT="/data"
           if [ -d "$DATA_ROOT" ]; then
-            mkdir -p "$DATA_ROOT/firmware"
-            cp "$FIRMWARE_SRC" "$DATA_ROOT/firmware/esp32cam-${VERSION}.bin"
-            cp "$FIRMWARE_SRC" "$DATA_ROOT/firmware/esp32cam-latest.bin"
+            ROOT_DIR="$DATA_ROOT/firmware"
+            GEEK_DIR="$ROOT_DIR/geek"
+            PROD_DIR="$ROOT_DIR/product"
+
+            mkdir -p "$ROOT_DIR" "$GEEK_DIR" "$PROD_DIR"
+
+            # geek 固件：存放在 firmware/geek 下
+            cp "$GEEK_SRC" "$GEEK_DIR/esp32cam-${VERSION}.bin"
+            cp "$GEEK_SRC" "$GEEK_DIR/esp32cam-latest.bin"
+
+            # product 固件：存放在 firmware/product 下
+            cp "$PROD_SRC" "$PROD_DIR/esp32cam-${VERSION}.bin"
+            cp "$PROD_SRC" "$PROD_DIR/esp32cam-latest.bin"
+
+            # 向后兼容：保留原有的根目录文件名，默认指向 geek 固件
+            cp "$GEEK_SRC" "$ROOT_DIR/esp32cam-${VERSION}.bin"
+            cp "$GEEK_SRC" "$ROOT_DIR/esp32cam-latest.bin"
           fi

@@ -2,11 +2,13 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
 #include <WebSocketsServer.h>
+#include <ESPmDNS.h>
 #include <string.h>
 #include <stdlib.h>
 #include "esp_ota_ops.h"
 #include "esp_task_wdt.h"
 #include "esp_partition.h"
+#include "esp_system.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
@@ -68,11 +70,23 @@
 #endif
 #include "camera_pins.h"
 
+#if defined(SMALLCAR_FW_PRODUCT)
+#define SMALLCAR_IS_PRODUCT 1
+#define SMALLCAR_IS_GEEK 0
+#else
+#define SMALLCAR_IS_PRODUCT 0
+#define SMALLCAR_IS_GEEK 1
+#endif
+
 // ===========================
 // Enter your WiFi credentials
 // ===========================
 const char *ssid = "IronMan";
 const char *password = "Loveyou3000.";
+
+#define WIFI_NVS_NAMESPACE "wifi_cfg"
+#define WIFI_NVS_KEY_SSID "ssid"
+#define WIFI_NVS_KEY_PSK "psk"
 
 static const int UART_RX_PIN = 12;
 static const int UART_TX_PIN = 13;
@@ -237,6 +251,70 @@ static void pollBatteryFromUart() {
       }
     }
   }
+}
+
+bool load_sta_config_from_nvs(char *out_ssid, size_t out_ssid_size, char *out_psk, size_t out_psk_size) {
+  if (!out_ssid || out_ssid_size == 0 || !out_psk || out_psk_size == 0) {
+    return false;
+  }
+  out_ssid[0] = '\0';
+  out_psk[0] = '\0';
+
+  nvs_handle_t h;
+  esp_err_t err = nvs_open(WIFI_NVS_NAMESPACE, NVS_READONLY, &h);
+  if (err != ESP_OK) {
+    return false;
+  }
+
+  size_t ssid_len = out_ssid_size;
+  err = nvs_get_str(h, WIFI_NVS_KEY_SSID, out_ssid, &ssid_len);
+  if (err != ESP_OK || out_ssid[0] == '\0') {
+    nvs_close(h);
+    out_ssid[0] = '\0';
+    out_psk[0] = '\0';
+    return false;
+  }
+
+  size_t psk_len = out_psk_size;
+  err = nvs_get_str(h, WIFI_NVS_KEY_PSK, out_psk, &psk_len);
+  if (err != ESP_OK) {
+    out_psk[0] = '\0';
+  }
+
+  nvs_close(h);
+  return true;
+}
+
+bool save_sta_config_to_nvs(const char *in_ssid, const char *in_psk) {
+  if (!in_ssid || in_ssid[0] == '\0') {
+    return false;
+  }
+
+  nvs_handle_t h;
+  esp_err_t err = nvs_open(WIFI_NVS_NAMESPACE, NVS_READWRITE, &h);
+  if (err != ESP_OK) {
+    Serial.printf("WiFi NVS open failed: %d\n", (int)err);
+    return false;
+  }
+
+  const char *psk = in_psk ? in_psk : "";
+
+  esp_err_t err1 = nvs_set_str(h, WIFI_NVS_KEY_SSID, in_ssid);
+  esp_err_t err2 = nvs_set_str(h, WIFI_NVS_KEY_PSK, psk);
+  if (err1 != ESP_OK || err2 != ESP_OK) {
+    Serial.printf("WiFi NVS set_str failed: ssid=%d, psk=%d\n", (int)err1, (int)err2);
+    nvs_close(h);
+    return false;
+  }
+
+  err = nvs_commit(h);
+  nvs_close(h);
+  if (err != ESP_OK) {
+    Serial.printf("WiFi NVS commit failed: %d\n", (int)err);
+    return false;
+  }
+
+  return true;
 }
 
 static void ota_preerase_task(void *param) {
@@ -406,7 +484,80 @@ void setup() {
 #if defined(LED_GPIO_NUM)
   setupLedFlash(LED_GPIO_NUM);
 #endif
+#if SMALLCAR_IS_PRODUCT
+  WiFi.mode(WIFI_MODE_APSTA);
+  WiFi.setSleep(false);
 
+  uint8_t mac[6];
+  if (esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP) != ESP_OK) {
+    memset(mac, 0, sizeof(mac));
+  }
+
+  char apSsid[32];
+  snprintf(apSsid, sizeof(apSsid), "SmallCar-%02X%02X", mac[4], mac[5]);
+  const char *apPassword = "smallcar123";
+
+  bool ap_ok = WiFi.softAP(apSsid, apPassword);
+  IPAddress apIP = WiFi.softAPIP();
+
+  Serial.print("AP SSID: ");
+  Serial.println(apSsid);
+  Serial.print("AP IP: ");
+  Serial.println(apIP);
+  if (!ap_ok) {
+    Serial.println("AP start failed");
+  }
+
+  char staSsid[33];
+  char staPassword[65];
+  staSsid[0] = '\0';
+  staPassword[0] = '\0';
+  bool staConfigured = load_sta_config_from_nvs(staSsid, sizeof(staSsid), staPassword, sizeof(staPassword));
+
+  const char *staSsidToUse = NULL;
+  const char *staPasswordToUse = NULL;
+  if (staConfigured) {
+    staSsidToUse = staSsid;
+    staPasswordToUse = staPassword;
+  } else {
+    staSsidToUse = ssid;
+    staPasswordToUse = password;
+  }
+
+  if (staSsidToUse && staSsidToUse[0] != '\0') {
+    Serial.print("WiFi STA connecting to ");
+    Serial.println(staSsidToUse);
+    WiFi.begin(staSsidToUse, staPasswordToUse);
+
+    unsigned long startMs = millis();
+    Serial.print("WiFi connecting");
+    while (WiFi.status() != WL_CONNECTED && (millis() - startMs) < 15000UL) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println("");
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.print("WiFi STA connected, IP: ");
+      Serial.println(WiFi.localIP());
+    } else {
+      Serial.println("WiFi STA connect failed");
+    }
+  } else {
+    Serial.println("No STA WiFi configured, AP only mode");
+  }
+
+  char mdnsName[32];
+  snprintf(mdnsName, sizeof(mdnsName), "smallcar-%02X%02X", mac[4], mac[5]);
+  if (!MDNS.begin(mdnsName)) {
+    Serial.println("mDNS start failed");
+  } else {
+    MDNS.addService("http", "tcp", 80);
+    MDNS.addService("ws", "tcp", 8765);
+    Serial.print("mDNS hostname: ");
+    Serial.println(mdnsName);
+  }
+#else
   WiFi.begin(ssid, password);
   WiFi.setSleep(false);
 
@@ -417,6 +568,7 @@ void setup() {
   }
   Serial.println("");
   Serial.println("WiFi connected");
+#endif
 
   // 标记当前 OTA 应用为有效，取消回滚保护
   // 如果不调用此函数，系统会认为当前固件处于"待验证"状态，可能阻止后续 OTA

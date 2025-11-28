@@ -13,6 +13,7 @@
 // limitations under the License.
 #include <Arduino.h>
 #include <WiFi.h>
+#include <ArduinoJson.h>
 #include "esp_http_server.h"
 #include "esp_timer.h"
 #include "esp_camera.h"
@@ -27,9 +28,20 @@
 #include "sdkconfig.h"
 #include "camera_index.h"
 
+#if defined(SMALLCAR_FW_PRODUCT)
+#define SMALLCAR_IS_PRODUCT 1
+#define SMALLCAR_IS_GEEK 0
+#include "camera_index_product.h"
+#else
+#define SMALLCAR_IS_PRODUCT 0
+#define SMALLCAR_IS_GEEK 1
+#endif
+
 extern int g_battery_mv;
 extern int g_battery_percent;
 extern uint32_t g_battery_ts_ms;
+extern bool load_sta_config_from_nvs(char *out_ssid, size_t out_ssid_size, char *out_psk, size_t out_psk_size);
+extern bool save_sta_config_to_nvs(const char *in_ssid, const char *in_psk);
 
 #if defined(ARDUINO_ARCH_ESP32) && defined(CONFIG_ARDUHAL_ESP_LOG)
 #include "esp32-hal-log.h"
@@ -471,6 +483,7 @@ static void url_decode_inplace(char *s) {
   *dst = '\0';
 }
 
+#if SMALLCAR_IS_GEEK
 static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
   camera_fb_t *fb = esp_camera_fb_get();
   if (!fb) {
@@ -596,6 +609,14 @@ static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
   }
   return ESP_OK;
 }
+#else
+static esp_err_t snapshot_to_router_handler(httpd_req_t *req) {
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  httpd_resp_set_type(req, "application/json");
+  const char *resp = "{\"ok\":false,\"error\":\"disabled_in_product_fw\"}";
+  return httpd_resp_send(req, resp, strlen(resp));
+}
+#endif
 
 static esp_err_t stream_handler(httpd_req_t *req) {
   camera_fb_t *fb = NULL;
@@ -978,6 +999,135 @@ static esp_err_t status_handler(httpd_req_t *req) {
   return httpd_resp_send(req, json_response, strlen(json_response));
 }
 
+#if SMALLCAR_IS_PRODUCT
+static esp_err_t wifi_state_handler(httpd_req_t *req) {
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  String apSsid = WiFi.softAPSSID();
+  IPAddress apIp = WiFi.softAPIP();
+  String apIpStr = apIp.toString();
+
+  bool staConnected = WiFi.status() == WL_CONNECTED;
+
+  char savedSsid[33];
+  char savedPsk[65];
+  savedSsid[0] = '\0';
+  savedPsk[0] = '\0';
+  bool staConfigured = load_sta_config_from_nvs(savedSsid, sizeof(savedSsid), savedPsk, sizeof(savedPsk));
+
+  char staSsid[33];
+  staSsid[0] = '\0';
+  if (staConfigured && savedSsid[0] != '\0') {
+    strncpy(staSsid, savedSsid, sizeof(staSsid) - 1U);
+    staSsid[sizeof(staSsid) - 1U] = '\0';
+  } else {
+    String cur = WiFi.SSID();
+    size_t len = cur.length();
+    if (len >= sizeof(staSsid)) {
+      len = sizeof(staSsid) - 1U;
+    }
+    memcpy(staSsid, cur.c_str(), len);
+    staSsid[len] = '\0';
+  }
+
+  IPAddress staIp = WiFi.localIP();
+  String staIpStr = staConnected ? staIp.toString() : String("");
+
+  StaticJsonDocument<384> doc;
+  doc["ok"] = true;
+  doc["ap_ssid"] = apSsid;
+  doc["ap_ip"] = apIpStr;
+  doc["sta_configured"] = staConfigured;
+  doc["sta_connected"] = staConnected;
+  doc["sta_ssid"] = staSsid;
+  doc["sta_ip"] = staIpStr;
+
+  String out;
+  serializeJson(doc, out);
+  return httpd_resp_send(req, out.c_str(), out.length());
+}
+
+static esp_err_t wifi_scan_handler(httpd_req_t *req) {
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.createNestedArray("networks");
+
+  int16_t n = WiFi.scanNetworks();
+  if (n > 0) {
+    for (int16_t i = 0; i < n; i++) {
+      String ssid = WiFi.SSID(i);
+      if (ssid.length() == 0) {
+        continue;
+      }
+      JsonObject obj = arr.createNestedObject();
+      obj["ssid"] = ssid;
+      obj["rssi"] = WiFi.RSSI(i);
+      obj["sec"] = (int)WiFi.encryptionType(i);
+    }
+  }
+  WiFi.scanDelete();
+
+  String out;
+  serializeJson(doc, out);
+  return httpd_resp_send(req, out.c_str(), out.length());
+}
+
+static esp_err_t wifi_config_handler(httpd_req_t *req) {
+  httpd_resp_set_type(req, "application/json");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+
+  int total = req->content_len;
+  if (total <= 0 || total > 512) {
+    const char *resp = "{\"ok\":false,\"error\":\"invalid_length\"}";
+    return httpd_resp_send(req, resp, strlen(resp));
+  }
+
+  char buf[512];
+  int received = 0;
+  while (received < total && received < (int)(sizeof(buf) - 1U)) {
+    int r = httpd_req_recv(req, buf + received, total - received);
+    if (r <= 0) {
+      const char *resp = "{\"ok\":false,\"error\":\"recv_failed\"}";
+      return httpd_resp_send(req, resp, strlen(resp));
+    }
+    received += r;
+  }
+  buf[received] = '\0';
+
+  StaticJsonDocument<256> doc;
+  DeserializationError err = deserializeJson(doc, buf);
+  if (err) {
+    const char *resp = "{\"ok\":false,\"error\":\"json_parse\"}";
+    return httpd_resp_send(req, resp, strlen(resp));
+  }
+
+  const char *cfg_ssid = doc["ssid"];
+  const char *cfg_password = doc["password"];
+  if (!cfg_ssid || cfg_ssid[0] == '\0') {
+    const char *resp = "{\"ok\":false,\"error\":\"empty_ssid\"}";
+    return httpd_resp_send(req, resp, strlen(resp));
+  }
+
+  if (!save_sta_config_to_nvs(cfg_ssid, cfg_password)) {
+    const char *resp = "{\"ok\":false,\"error\":\"save_failed\"}";
+    return httpd_resp_send(req, resp, strlen(resp));
+  }
+
+  WiFi.begin(cfg_ssid, cfg_password);
+
+  StaticJsonDocument<128> respDoc;
+  respDoc["ok"] = true;
+  respDoc["sta_ssid"] = cfg_ssid;
+
+  String out;
+  serializeJson(respDoc, out);
+  return httpd_resp_send(req, out.c_str(), out.length());
+}
+#endif
+
 static esp_err_t battery_handler(httpd_req_t *req) {
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -1174,7 +1324,51 @@ static esp_err_t win_handler(httpd_req_t *req) {
   return httpd_resp_send(req, NULL, 0);
 }
 
+#if SMALLCAR_IS_PRODUCT
+static esp_err_t send_gz_asset(httpd_req_t *req, const char *content_type, const unsigned char *data, size_t len) {
+  httpd_resp_set_type(req, content_type);
+  httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
+  httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+  return httpd_resp_send(req, (const char *)data, len);
+}
+
+static esp_err_t product_index_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "text/html", product_index_html_gz, product_index_html_gz_len);
+}
+
+static esp_err_t product_setup_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "text/html", product_setup_html_gz, product_setup_html_gz_len);
+}
+
+static esp_err_t product_style_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "text/css", product_style_css_gz, product_style_css_gz_len);
+}
+
+static esp_err_t product_main_js_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "application/javascript", product_main_js_gz, product_main_js_gz_len);
+}
+
+static esp_err_t product_setup_js_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "application/javascript", product_setup_js_gz, product_setup_js_gz_len);
+}
+
+static esp_err_t product_config_js_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "application/javascript", product_config_js_gz, product_config_js_gz_len);
+}
+
+static esp_err_t product_favicon_svg_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "image/svg+xml", product_favicon_svg_gz, product_favicon_svg_gz_len);
+}
+
+static esp_err_t product_placeholder_video_svg_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "image/svg+xml", product_placeholder_video_svg_gz, product_placeholder_video_svg_gz_len);
+}
+#endif
+
 static esp_err_t index_handler(httpd_req_t *req) {
+#if SMALLCAR_IS_PRODUCT
+  return product_index_handler(req);
+#else
   httpd_resp_set_type(req, "text/html");
   httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
   sensor_t *s = esp_camera_sensor_get();
@@ -1190,11 +1384,12 @@ static esp_err_t index_handler(httpd_req_t *req) {
     log_e("Camera sensor not found");
     return httpd_resp_send_500(req);
   }
+#endif
 }
 
 void startCameraServer() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
-  config.max_uri_handlers = 16;
+  config.max_uri_handlers = 40;
   // 增加接收超时时间，防止 OTA 大文件传输时超时（默认 10 秒太短）
   // 1 分钟足够大文件传输
   config.recv_wait_timeout = 60;  // 60 秒
@@ -1215,6 +1410,140 @@ void startCameraServer() {
     .supported_subprotocol = NULL
 #endif
   };
+
+#if SMALLCAR_IS_PRODUCT
+  httpd_uri_t wifi_state_uri = {
+    .uri = "/wifi_state",
+    .method = HTTP_GET,
+    .handler = wifi_state_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t wifi_scan_uri = {
+    .uri = "/wifi_scan",
+    .method = HTTP_GET,
+    .handler = wifi_scan_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t wifi_config_uri = {
+    .uri = "/wifi_config",
+    .method = HTTP_POST,
+    .handler = wifi_config_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+#endif
+
+#if SMALLCAR_IS_PRODUCT
+  httpd_uri_t product_setup_uri = {
+    .uri = "/setup.html",
+    .method = HTTP_GET,
+    .handler = product_setup_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t product_style_uri = {
+    .uri = "/style.css",
+    .method = HTTP_GET,
+    .handler = product_style_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t product_main_js_uri = {
+    .uri = "/main.js",
+    .method = HTTP_GET,
+    .handler = product_main_js_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t product_setup_js_uri = {
+    .uri = "/setup.js",
+    .method = HTTP_GET,
+    .handler = product_setup_js_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t product_config_js_uri = {
+    .uri = "/config.js",
+    .method = HTTP_GET,
+    .handler = product_config_js_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t product_favicon_svg_uri = {
+    .uri = "/favicon.svg",
+    .method = HTTP_GET,
+    .handler = product_favicon_svg_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+
+  httpd_uri_t product_placeholder_video_svg_uri = {
+    .uri = "/placeholder-video.svg",
+    .method = HTTP_GET,
+    .handler = product_placeholder_video_svg_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
+#endif
 
   httpd_uri_t snapshot_to_router_uri = {
     .uri = "/snapshot_to_router",
@@ -1408,6 +1737,19 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &battery_uri);
     httpd_register_uri_handler(camera_httpd, &capture_uri);
     httpd_register_uri_handler(camera_httpd, &snapshot_to_router_uri);
+    
+#if SMALLCAR_IS_PRODUCT
+    httpd_register_uri_handler(camera_httpd, &wifi_state_uri);
+    httpd_register_uri_handler(camera_httpd, &wifi_scan_uri);
+    httpd_register_uri_handler(camera_httpd, &wifi_config_uri);
+    httpd_register_uri_handler(camera_httpd, &product_setup_uri);
+    httpd_register_uri_handler(camera_httpd, &product_style_uri);
+    httpd_register_uri_handler(camera_httpd, &product_main_js_uri);
+    httpd_register_uri_handler(camera_httpd, &product_setup_js_uri);
+    httpd_register_uri_handler(camera_httpd, &product_config_js_uri);
+    httpd_register_uri_handler(camera_httpd, &product_favicon_svg_uri);
+    httpd_register_uri_handler(camera_httpd, &product_placeholder_video_svg_uri);
+#endif
     httpd_register_uri_handler(camera_httpd, &bmp_uri);
 
     httpd_register_uri_handler(camera_httpd, &ota_options_uri);
