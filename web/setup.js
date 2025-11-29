@@ -150,12 +150,6 @@
     });
   }
 
-  if (scanBtn) {
-    scanBtn.addEventListener("click", () => {
-      scanNetworks();
-    });
-  }
-
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
       saveConfig();
@@ -164,5 +158,7 @@
 
   window.addEventListener("load", () => {
     loadWifiState();
+    // 开机后自动读取一次扫描结果列表，无需用户点击“扫描”按钮
+    scanNetworks();
   });
 })();

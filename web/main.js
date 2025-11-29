@@ -254,45 +254,9 @@
   }
 
   if (APP_MODE.isProduct) {
-    if (otaFileInput) {
-      otaFileInput.style.display = "none";
-    }
-    if (otaUploadBtn) {
-      otaUploadBtn.style.display = "none";
-    }
-    if (otaOpenRepoBtn) {
-      otaOpenRepoBtn.style.display = "none";
-    }
-
+    // 产品模式下隐藏与路由器强相关的配置和状态图标，但保留 WS / 视频地址和 OTA 控件，方便调试
     if (routerBaseInput && routerBaseInput.parentElement) {
       routerBaseInput.parentElement.style.display = "none";
-    }
-
-    try {
-      const wsLabelEl = document.querySelector(".ws-label");
-      if (wsLabelEl) {
-        wsLabelEl.style.display = "none";
-      }
-    } catch (e) {}
-    if (wsBtn) {
-      wsBtn.style.display = "none";
-    }
-    if (wsStatus) {
-      wsStatus.style.display = "none";
-    }
-
-    try {
-      const videoUrlLabel = document.querySelector(".video-url-label");
-      if (videoUrlLabel) {
-        videoUrlLabel.style.display = "none";
-      }
-    } catch (e) {}
-    if (videoLoadBtn) {
-      videoLoadBtn.style.display = "none";
-    }
-
-    if (camAdvancedBtn) {
-      camAdvancedBtn.style.display = "none";
     }
 
     if (recordBtn) {
@@ -2163,6 +2127,7 @@
         if (u.protocol !== "http:" && u.protocol !== "https:") {
           throw new Error("invalid protocol");
         }
+        // ESP32-CAM 默认 /capture 在 HTTP 主端口（通常是 80），与 :81/stream 分开
         captureUrl = `${u.protocol}//${u.hostname}/capture`;
       } catch (e) {
         alert("视频流地址格式不正确，请检查，例如 http://192.168.31.140:81/stream");
@@ -2174,63 +2139,75 @@
       if (snapshotThumb) {
         snapshotThumb.src = tsUrl;
       }
-          return;
-        }
 
-        if (!videoActive) {
-          alert("请先加载视频流，再开始录像");
-          return;
-        }
+      if (APP_MODE.isGeek) {
+        triggerSnapshotToRouter();
+      }
+    });
+  }
 
-        if (!APP_MODE.isGeek) {
-          // 产品模式不提供录像功能
-          return;
-        }
+  if (recordBtn) {
+    recordBtn.addEventListener("click", async () => {
+      const url = videoUrlInput.value.trim();
+      if (!url) {
+        alert("请先填写有效的视频流地址，例如 http://192.168.31.140:81/stream");
+        return;
+      }
 
-        const routerBase = getRouterBase();
-        if (!routerBase || typeof fetch !== "function") {
-          alert("请先填写路由器地址，例如 http://192.168.31.1:8099");
-          return;
-        }
+      if (!videoActive) {
+        alert("请先加载视频流，再开始录像");
+        return;
+      }
 
-        if (!videoRecording) {
-          // 开始录像
-          try {
-            const resp = await fetch(`${routerBase}/record_start`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              mode: "cors",
-              body: JSON.stringify({}),
-            });
-            if (!resp.ok) {
-              alert(`开启录像失败 (${resp.status})`);
-              return;
-            }
-          } catch (e) {
-            alert("无法连接视频服务，请检查路由器地址和网络");
+      if (!APP_MODE.isGeek) {
+        // 产品模式不提供录像功能
+        return;
+      }
+
+      const routerBase = getRouterBase();
+      if (!routerBase || typeof fetch !== "function") {
+        alert("请先填写路由器地址，例如 http://192.168.31.1:8099");
+        return;
+      }
+
+      if (!videoRecording) {
+        // 开始录像
+        try {
+          const resp = await fetch(`${routerBase}/record_start`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            mode: "cors",
+            body: JSON.stringify({}),
+          });
+          if (!resp.ok) {
+            alert(`开启录像失败 (${resp.status})`);
             return;
           }
-
-          videoRecording = true;
-          recordBtn.classList.add("recording");
-          if (videoBox) {
-            videoBox.classList.add("recording");
-          }
-          videoRecordStartTime = Date.now();
-          if (videoRecordTimerId) {
-            clearInterval(videoRecordTimerId);
-          }
-          updateVideoRecordTimer();
-          videoRecordTimerId = setInterval(updateVideoRecordTimer, 1000);
-          setSnapshotUploadStatus("uploading", "视频录制中...");
-        } else {
-          // 停止录像
-          await stopRecordingIfNeeded({ showError: true });
+        } catch (e) {
+          alert("无法连接视频服务，请检查路由器地址和网络");
+          return;
         }
-      });
-    }
 
-    // 点击当前状态中的缩略图，在当前页面弹出预览（照片或视频）
+        videoRecording = true;
+        recordBtn.classList.add("recording");
+        if (videoBox) {
+          videoBox.classList.add("recording");
+        }
+        videoRecordStartTime = Date.now();
+        if (videoRecordTimerId) {
+          clearInterval(videoRecordTimerId);
+        }
+        updateVideoRecordTimer();
+        videoRecordTimerId = setInterval(updateVideoRecordTimer, 1000);
+        setSnapshotUploadStatus("uploading", "视频录制中...");
+      } else {
+        // 停止录像
+        await stopRecordingIfNeeded({ showError: true });
+      }
+    });
+  }
+
+  // 点击当前状态中的缩略图，在当前页面弹出预览（照片或视频）
     if (snapshotThumb && snapshotModal && snapshotModalImg) {
       snapshotThumb.addEventListener("click", () => {
         const src = snapshotThumb.src || "";
@@ -2536,9 +2513,6 @@
     startBatteryPolling();
 
     if (APP_MODE.isProduct) {
-      try {
-        connect();
-      } catch (e) {}
       applyDefaultPresetForProduct();
       maybeShowWifiSetupHintOnAp();
     }

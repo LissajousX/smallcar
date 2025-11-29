@@ -1000,6 +1000,32 @@ static esp_err_t status_handler(httpd_req_t *req) {
 }
 
 #if SMALLCAR_IS_PRODUCT
+static String s_wifi_scan_cached;
+
+static void wifi_scan_cache_init() {
+  DynamicJsonDocument doc(2048);
+  JsonArray arr = doc.createNestedArray("networks");
+
+  int16_t n = WiFi.scanNetworks();
+  if (n > 0) {
+    for (int16_t i = 0; i < n; i++) {
+      String ssid = WiFi.SSID(i);
+      if (ssid.length() == 0) {
+        continue;
+      }
+      JsonObject obj = arr.createNestedObject();
+      obj["ssid"] = ssid;
+      obj["rssi"] = WiFi.RSSI(i);
+      obj["sec"] = (int)WiFi.encryptionType(i);
+    }
+  }
+  WiFi.scanDelete();
+
+  String out;
+  serializeJson(doc, out);
+  s_wifi_scan_cached = out;
+}
+
 static esp_err_t wifi_state_handler(httpd_req_t *req) {
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
@@ -1052,27 +1078,15 @@ static esp_err_t wifi_scan_handler(httpd_req_t *req) {
   httpd_resp_set_type(req, "application/json");
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
-  DynamicJsonDocument doc(2048);
-  JsonArray arr = doc.createNestedArray("networks");
-
-  int16_t n = WiFi.scanNetworks();
-  if (n > 0) {
-    for (int16_t i = 0; i < n; i++) {
-      String ssid = WiFi.SSID(i);
-      if (ssid.length() == 0) {
-        continue;
-      }
-      JsonObject obj = arr.createNestedObject();
-      obj["ssid"] = ssid;
-      obj["rssi"] = WiFi.RSSI(i);
-      obj["sec"] = (int)WiFi.encryptionType(i);
-    }
+  if (s_wifi_scan_cached.length() == 0) {
+    DynamicJsonDocument doc(256);
+    JsonArray arr = doc.createNestedArray("networks");
+    String out;
+    serializeJson(doc, out);
+    return httpd_resp_send(req, out.c_str(), out.length());
   }
-  WiFi.scanDelete();
 
-  String out;
-  serializeJson(doc, out);
-  return httpd_resp_send(req, out.c_str(), out.length());
+  return httpd_resp_send(req, s_wifi_scan_cached.c_str(), s_wifi_scan_cached.length());
 }
 
 static esp_err_t wifi_config_handler(httpd_req_t *req) {
@@ -1397,6 +1411,11 @@ void startCameraServer() {
 
   // 从 NVS 恢复上一次 OTA 结果，这样即使设备在 OTA 后重启，/status 也能看到最新一次 OTA 的诊断信息
   ota_diag_load_from_nvs();
+
+#if SMALLCAR_IS_PRODUCT
+  // 产品固件：在启动 HTTP 服务器前执行一次 Wi‑Fi 扫描并缓存结果，避免在 /wifi_scan 请求期间长时间阻塞导致 AP 断开
+  wifi_scan_cache_init();
+#endif
 
   httpd_uri_t index_uri = {
     .uri = "/",
