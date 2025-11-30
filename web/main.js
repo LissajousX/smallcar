@@ -1922,9 +1922,13 @@
     videoRecordTimer.classList.add("visible");
   }
 
-  async function stopRecordingIfNeeded(options = { showError: false }) {
+  async function stopRecordingIfNeeded(options) {
     if (!videoRecording) {
       return;
+    }
+
+    if (!options) {
+      options = { showError: false };
     }
 
     const routerBase = getRouterBase();
