@@ -200,6 +200,7 @@ int main(void)
 
         if (Data[1] == 0x73U)
         {
+            /* 手柄处于“数据正常”状态：从离线->在线沿触发一次提示音 */
             if (!g_ps2_online)
             {
                 Buzzer_StartShortSingleBeep();
@@ -595,6 +596,17 @@ int main(void)
 
                 Servo_SetYawAngle(yaw_angle);
                 Servo_SetPitchAngle(pitch_angle);
+            }
+        }
+
+        /* 4. PS2 掉线检测：超过一定时间未收到 Data[1]==0x73 视为离线，从在线->离线沿提示一次蜂鸣 */
+        if (g_ps2_online)
+        {
+            uint32_t dt = g_loop_counter - g_ps2_last_ok_tick;
+            if (dt >= PS2_OFFLINE_TIMEOUT_LOOPS)
+            {
+                g_ps2_online = 0U;
+                Buzzer_StartShortSingleBeep();
             }
         }
 

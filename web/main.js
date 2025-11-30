@@ -841,6 +841,13 @@
       }
     }
 
+    let fillPercent = 0;
+    if (state && ok && percent != null) {
+      const p = Math.max(0, Math.min(percent, 100));
+      fillPercent = p;
+    }
+    batteryIcon.style.setProperty("--battery-fill", `${fillPercent}%`);
+
     batteryIcon.classList.add("battery-icon", cls);
     batteryText.textContent = text;
     batteryText.title = title;

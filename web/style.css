@@ -63,6 +63,20 @@ body {
   box-sizing: border-box;
   border-radius: 2px;
   border: 2px solid currentColor;
+  /* 通过 CSS 变量控制电量填充宽度，0%..100% */
+  --battery-fill: 0%;
+}
+
+.battery-icon::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  bottom: 2px;
+  width: var(--battery-fill);
+  background: currentColor;
+  border-radius: 1px;
+  transition: width 0.2s ease-out;
 }
 
 .battery-icon::before {

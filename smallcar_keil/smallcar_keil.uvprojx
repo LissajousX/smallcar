@@ -387,37 +387,37 @@
             <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\\main.c</FilePath>
+              <FilePath>.\main.c</FilePath>
             </File>
             <File>
               <FileName>motor.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\\motor.c</FilePath>
+              <FilePath>.\motor.c</FilePath>
             </File>
             <File>
               <FileName>ps2.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\\ps2.c</FilePath>
+              <FilePath>.\ps2.c</FilePath>
             </File>
             <File>
               <FileName>servo.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\\servo.c</FilePath>
+              <FilePath>.\servo.c</FilePath>
             </File>
             <File>
               <FileName>remote.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\\remote.c</FilePath>
+              <FilePath>.\remote.c</FilePath>
             </File>
             <File>
               <FileName>battery.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\\battery.c</FilePath>
+              <FilePath>.\battery.c</FilePath>
             </File>
             <File>
               <FileName>buzzer.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\\buzzer.c</FilePath>
+              <FilePath>.\buzzer.c</FilePath>
             </File>
           </Files>
         </Group>

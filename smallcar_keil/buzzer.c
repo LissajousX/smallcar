@@ -24,11 +24,11 @@ static void Buzzer_SetOutput(uint8_t on)
 {
     if (on)
     {
-        BUZZER_GPIO->BSRR = (uint16_t)(1U << BUZZER_PIN);
+        BUZZER_GPIO->BRR = (uint16_t)(1U << BUZZER_PIN);
     }
     else
     {
-        BUZZER_GPIO->BRR = (uint16_t)(1U << BUZZER_PIN);
+        BUZZER_GPIO->BSRR = (uint16_t)(1U << BUZZER_PIN);
     }
 }
 
