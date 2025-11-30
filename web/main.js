@@ -2541,5 +2541,4 @@
       applyCameraAdvancedSettings();
     });
   }
-}
 })();
