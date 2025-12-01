@@ -2029,6 +2029,50 @@
     resetLightUI();
   };
 
+  const pauseVideo = async () => {
+    if (!videoActive || !videoView || !videoUrlInput) {
+      return;
+    }
+
+    // 停止录像，但保留当前画面
+    await stopRecordingIfNeeded({ showError: false });
+
+    // geek 模式下同时通知路由器停止拉流，避免后台继续占用带宽
+    if (!APP_MODE.isProduct) {
+      const routerBase = getRouterBase();
+      if (routerBase && typeof fetch === "function") {
+        try {
+          await fetch(`${routerBase}/stop_stream`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            mode: "cors",
+          }).catch(() => {});
+        } catch (e) {}
+      }
+    }
+
+    // 基于当前视频地址推导 /capture，获取一帧静止图像用于“冻结”画面
+    let frozenSrc = videoView.src;
+    const url = videoUrlInput.value.trim();
+    if (url) {
+      try {
+        const u = new URL(url, window.location.href);
+        if (u.protocol === "http:" || u.protocol === "https:") {
+          const captureUrl = `${u.protocol}//${u.hostname}/capture`;
+          frozenSrc = `${captureUrl}?t=${Date.now()}`;
+        }
+      } catch (e) {}
+    }
+
+    videoView.src = frozenSrc;
+    videoActive = false;
+    videoPaused = true;
+    videoLoadBtn.textContent = "加载";
+    if (videoPlayToggle) {
+      videoPlayToggle.classList.remove("playing");
+    }
+  };
+
   const loadVideo = async () => {
     const url = videoUrlInput.value.trim();
     if (!url) {
