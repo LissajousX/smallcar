@@ -3,9 +3,11 @@
 
 #define BAT_VREF_MV           3300U
 #define BAT_DIVIDER_RATIO     5U
-#define BAT_FULL_MV           12600U
-#define BAT_EMPTY_MV          9000U
+#define BAT_FULL_MV           12300U
+#define BAT_EMPTY_MV          10500U
 #define BAT_ADC_SAMPLE_TIMES  8U
+
+static uint32_t s_battery_mv_filtered = 0U;
 
 static void Battery_DelayMs(uint32_t ms)
 {
@@ -87,7 +89,18 @@ uint32_t Battery_GetVoltage_mV(void)
     raw = Battery_ADC_ReadRaw();
     mv = (uint32_t)raw * BAT_VREF_MV * BAT_DIVIDER_RATIO / 4095U;
 
-    return mv;
+    if (s_battery_mv_filtered == 0U)
+    {
+        /* 第一次赋值，直接采样值作为初始滤波结果 */
+        s_battery_mv_filtered = mv;
+    }
+    else
+    {
+        /* 一阶低通滤波：新值占 1/4 权重，旧值占 3/4 权重 */
+        s_battery_mv_filtered = (s_battery_mv_filtered * 3U + mv) / 4U;
+    }
+
+    return s_battery_mv_filtered;
 }
 
 uint8_t Battery_ConvertPercent(uint32_t mv)

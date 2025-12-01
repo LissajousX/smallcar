@@ -610,7 +610,7 @@ int main(void)
             }
         }
 
-        if ((g_loop_counter % 50U) == 0U)
+        if ((g_loop_counter % 500U) == 0U)
         {
             uint32_t vbat_mv;
             uint8_t soc;

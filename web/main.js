@@ -986,7 +986,7 @@
     if (batteryPollTimer) {
       clearInterval(batteryPollTimer);
     }
-    batteryPollTimer = setInterval(poll, 5000);
+    batteryPollTimer = setInterval(poll, 60000);
   }
 
   async function triggerSnapshotToRouter() {
