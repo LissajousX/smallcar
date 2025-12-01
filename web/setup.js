@@ -12,6 +12,13 @@
   const nextSteps = document.getElementById("next-steps");
   const nextStepsText = document.getElementById("next-steps-text");
 
+  const WIFI_STATE_POLL_TOTAL_MS = 60000;
+  const WIFI_STATE_POLL_INTERVAL_MS = 3000;
+  let wifiStatePollTimer = null;
+  let wifiStatePollDeadline = 0;
+  let lastApSsid = "";
+  let lastStaIp = "";
+
   function setStatus(text, color) {
     if (!statusMsg) return;
     statusMsg.textContent = text || "";
@@ -20,6 +27,37 @@
     } else {
       statusMsg.style.color = "";
     }
+  }
+
+  function buildAccessHint() {
+    const apSsid = lastApSsid;
+    const staIp = lastStaIp;
+
+    let mdnsUrl = "";
+    if (apSsid && apSsid !== "(未知)") {
+      const parts = apSsid.split("-");
+      const tail = parts[parts.length - 1].trim();
+      if (tail) {
+        const suffix = tail.toLowerCase();
+        mdnsUrl = `http://smallcar-${suffix}.local/`;
+      }
+    }
+
+    let ipUrl = "";
+    if (staIp && staIp !== "(未获取到 IP)" && staIp !== "") {
+      ipUrl = `http://${staIp}/`;
+    }
+
+    if (mdnsUrl && ipUrl) {
+      return `例如：${mdnsUrl} 或 ${ipUrl}`;
+    }
+    if (mdnsUrl) {
+      return `例如：${mdnsUrl}`;
+    }
+    if (ipUrl) {
+      return `例如：${ipUrl}`;
+    }
+    return "";
   }
 
   async function loadWifiState() {
@@ -47,6 +85,9 @@
       const staSsid = data.sta_ssid || "(未配置)";
       const staIp = data.sta_ip || "(未获取到 IP)";
 
+      lastApSsid = apSsid;
+      lastStaIp = staIp;
+
       wifiStateText.textContent = staConnected
         ? "已接入家庭 Wi‑Fi，可通过家庭网络访问小车。"
         : staConfigured
@@ -64,12 +105,42 @@
 
       if (staConfigured && nextSteps && nextStepsText) {
         nextSteps.style.display = "block";
-        nextStepsText.textContent =
-          "配网成功后，建议在手机/电脑连接家庭 Wi‑Fi 后，通过 http://smallcar-XXXX.local 或路由器分配的 IP 访问本控制页面。";
+        const hint = buildAccessHint();
+        if (hint) {
+          nextStepsText.textContent =
+            `配网成功后，建议在手机/电脑连接家庭 Wi‑Fi 后，在浏览器中 ${hint} 访问本控制页面。`;
+        } else {
+          nextStepsText.textContent =
+            "配网成功后，建议在手机/电脑连接家庭 Wi‑Fi 后，通过小车的 mDNS 名称或路由器分配的 IP 访问本控制页面（可参考上方\"当前网络状态\" 中的提示）。";
+        }
       }
     } catch (e) {
       wifiStateText.textContent = "读取网络状态失败。";
     }
+  }
+
+  function startWifiStatePolling() {
+    if (!wifiStateText || typeof fetch !== "function") {
+      return;
+    }
+
+    if (wifiStatePollTimer) {
+      clearTimeout(wifiStatePollTimer);
+      wifiStatePollTimer = null;
+    }
+
+    wifiStatePollDeadline = Date.now() + WIFI_STATE_POLL_TOTAL_MS;
+
+    const pollOnce = async () => {
+      await loadWifiState();
+      if (Date.now() < wifiStatePollDeadline) {
+        wifiStatePollTimer = setTimeout(pollOnce, WIFI_STATE_POLL_INTERVAL_MS);
+      } else {
+        wifiStatePollTimer = null;
+      }
+    };
+
+    pollOnce();
   }
 
   async function scanNetworks() {
@@ -130,10 +201,16 @@
         setStatus("配置已保存，小车正在尝试连接家庭 Wi‑Fi...", "green");
         if (nextSteps && nextStepsText) {
           nextSteps.style.display = "block";
-          nextStepsText.textContent =
-            "几秒钟后，请断开当前小车热点，在手机/电脑连接你的家庭 Wi‑Fi，然后通过 http://smallcar-XXXX.local 或路由器分配的 IP 访问本控制页面。";
+          const hint = buildAccessHint();
+          if (hint) {
+            nextStepsText.textContent =
+              `几秒钟后，请断开当前小车热点，在手机/电脑连接你的家庭 Wi‑Fi，然后在浏览器中 ${hint} 访问本控制页面。`;
+          } else {
+            nextStepsText.textContent =
+              "几秒钟后，请断开当前小车热点，在手机/电脑连接你的家庭 Wi‑Fi，然后通过小车的 mDNS 名称或路由器分配的 IP 访问本控制页面（可参考上方\"当前网络状态\" 中的提示）。";
+          }
         }
-        loadWifiState();
+        startWifiStatePolling();
       } else {
         setStatus("保存失败：固件返回错误。", "red");
       }
