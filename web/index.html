@@ -357,9 +357,15 @@
           <label for="ota-file">ESP32-CAM 固件升级：</label>
           <input id="ota-file" type="file" accept=".bin" />
           <button id="ota-upload-btn" class="small-btn">本地文件升级</button>
-          <button id="ota-fetch-latest-btn" class="small-btn">从路由器一键升级</button>
           <button id="ota-open-repo-btn" class="small-btn">打开固件仓库</button>
-          <div class="hint" id="ota-status">可以手动选择编译生成的 .bin 文件，或直接从路由器提供的最新固件一键升级。</div>
+          <div class="ota-remote-row">
+            <select id="ota-fw-type" class="top-pill-input">
+              <option value="geek" selected>极客版 (geek)</option>
+              <option value="product">产品版 (product)</option>
+            </select>
+            <button id="ota-fetch-latest-btn" class="small-btn">从路由器一键升级</button>
+          </div>
+          <div class="hint" id="ota-status">可以手动选择编译生成的 .bin 文件，或按上方固件类型从路由器提供的最新固件一键升级。</div>
         </div>
         <div class="field">
           <label for="router-base">路由地址：</label>

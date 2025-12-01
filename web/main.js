@@ -91,6 +91,7 @@
   const otaUploadBtn = document.getElementById("ota-upload-btn");
   const otaFetchLatestBtn = document.getElementById("ota-fetch-latest-btn");
   const otaOpenRepoBtn = document.getElementById("ota-open-repo-btn");
+  const otaFwTypeSelect = document.getElementById("ota-fw-type");
   const otaStatus = document.getElementById("ota-status");
   const routerBaseInput = document.getElementById("router-base");
 
@@ -2443,10 +2444,21 @@
         }
 
         const routerBase = getRouterBase();
-        const firmwareUrl = `${routerBase}/firmware/esp32cam-latest.bin`;
+
+        let fwType = "geek";
+        if (otaFwTypeSelect && otaFwTypeSelect.value === "product") {
+          fwType = "product";
+        }
+
+        let firmwareUrl = null;
+        if (fwType === "product") {
+          firmwareUrl = `${routerBase}/firmware/product/esp32cam-product-latest.bin`;
+        } else {
+          firmwareUrl = `${routerBase}/firmware/geek/esp32cam-latest.bin`;
+        }
 
         const ok = window.confirm(
-          `确定要从 ${firmwareUrl} 获取最新固件并刷写到当前 ESP32-CAM 吗？\n升级过程中请勿断电/刷新页面。`,
+          `确定要从 ${firmwareUrl} 获取最新${fwType === "product" ? "产品版" : "极客版"}固件并刷写到当前 ESP32-CAM 吗？\n升级过程中请勿断电/刷新页面。`,
         );
         if (!ok) {
           otaStatus.textContent = "已取消从路由器一键升级。";
@@ -2454,7 +2466,7 @@
           return;
         }
 
-        otaStatus.textContent = "正在从路由器获取最新固件...";
+        otaStatus.textContent = `正在从路由器获取最新${fwType === "product" ? "产品版" : "极客版"}固件...`;
         otaStatus.style.color = "#facc15";
 
         let fwBlob;
@@ -2466,7 +2478,9 @@
           fwBlob = await resp.blob();
         } catch (e) {
           otaStatus.textContent =
-            "从路由器获取最新固件失败，请确认 CI 是否已生成 esp32cam-latest.bin。";
+            fwType === "product"
+              ? "从路由器获取最新产品版固件失败，请确认 CI 是否已生成 esp32cam-product-latest.bin。"
+              : "从路由器获取最新极客版固件失败，请确认 CI 是否已生成 esp32cam-latest.bin。";
           otaStatus.style.color = "#f87171";
           return;
         }

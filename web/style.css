@@ -543,6 +543,18 @@ button.danger:hover {
   margin-left: 4px;
 }
 
+.ota-remote-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+#ota-fw-type {
+  min-width: 160px;
+}
+
 .field label {
   display: block;
   font-size: 13px;

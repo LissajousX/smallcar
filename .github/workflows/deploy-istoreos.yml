@@ -70,12 +70,12 @@ jobs:
             exit 0
           fi
 
-          # 对比上一个提交，检查 esp32_cam/CameraWebServer 是否有变更
-          if git diff --quiet HEAD^ HEAD -- esp32_cam/CameraWebServer; then
-            echo "ESP32 firmware sources unchanged; skip firmware build." >&2
+          # 对比上一个提交，检查 esp32_cam/CameraWebServer 和 web/ 是否有变更
+          if git diff --quiet HEAD^ HEAD -- esp32_cam/CameraWebServer web; then
+            echo "ESP32 firmware sources and product frontend unchanged; skip firmware build." >&2
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
-            echo "ESP32 firmware sources changed; will build firmware." >&2
+            echo "ESP32 firmware sources or product frontend changed; will build firmware." >&2
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -274,11 +274,7 @@ jobs:
             cp "$GEEK_SRC" "$GEEK_DIR/esp32cam-${VERSION}.bin"
             cp "$GEEK_SRC" "$GEEK_DIR/esp32cam-latest.bin"
 
-            # product 固件：存放在 firmware/product 下
-            cp "$PROD_SRC" "$PROD_DIR/esp32cam-${VERSION}.bin"
-            cp "$PROD_SRC" "$PROD_DIR/esp32cam-latest.bin"
-
-            # 向后兼容：保留原有的根目录文件名，默认指向 geek 固件
-            cp "$GEEK_SRC" "$ROOT_DIR/esp32cam-${VERSION}.bin"
-            cp "$GEEK_SRC" "$ROOT_DIR/esp32cam-latest.bin"
+            # product 固件：存放在 firmware/product 下，文件名带上 -product 以便区分
+            cp "$PROD_SRC" "$PROD_DIR/esp32cam-product-${VERSION}.bin"
+            cp "$PROD_SRC" "$PROD_DIR/esp32cam-product-latest.bin"
           fi
