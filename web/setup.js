@@ -11,7 +11,8 @@
   const statusMsg = document.getElementById("wifi-status-msg");
   const nextSteps = document.getElementById("next-steps");
   const nextStepsText = document.getElementById("next-steps-text");
-  const setupOtaBtn = document.getElementById("setup-ota-btn");
+  const setupOtaProductBtn = document.getElementById("setup-ota-product-btn");
+  const setupOtaGeekBtn = document.getElementById("setup-ota-geek-btn");
   const setupOtaStatus = document.getElementById("setup-ota-status");
 
   const WIFI_STATE_POLL_TOTAL_MS = 60000;
@@ -161,7 +162,7 @@
     return "/ota";
   }
 
-  async function runSetupOtaUpgrade() {
+  async function runSetupOtaUpgrade(fwType) {
     if (!setupOtaStatus) {
       return;
     }
@@ -173,10 +174,17 @@
 
     const otaUrl = buildOtaUrlFromLocation();
     const routerBase = DEFAULT_ROUTER_BASE;
-    const firmwareUrl = `${routerBase}/firmware/product/esp32cam-product-latest.bin`;
+
+    const type = fwType === "geek" ? "geek" : "product";
+    const isProduct = type === "product";
+    const firmwareUrl = isProduct
+      ? `${routerBase}/firmware/product/esp32cam-product-latest.bin`
+      : `${routerBase}/firmware/geek/esp32cam-latest.bin`;
+
+    const label = isProduct ? "产品版" : "极客版";
 
     const ok = window.confirm(
-      `确定要从 ${firmwareUrl} 获取最新产品版固件并刷写到当前 ESP32-CAM 吗？\n升级过程中请勿断电/刷新页面。`,
+      `确定要从 ${firmwareUrl} 获取最新${label}固件并刷写到当前 ESP32-CAM 吗？\n升级过程中请勿断电/刷新页面。`,
     );
     if (!ok) {
       setupOtaStatus.textContent = "已取消从路由器一键升级。";
@@ -184,7 +192,7 @@
       return;
     }
 
-    setupOtaStatus.textContent = "正在从路由器获取最新产品版固件...";
+    setupOtaStatus.textContent = `正在从路由器获取最新${label}固件...`;
     setupOtaStatus.style.color = "#facc15";
 
     let fwBlob;
@@ -195,8 +203,9 @@
       }
       fwBlob = await resp.blob();
     } catch (e) {
-      setupOtaStatus.textContent =
-        "从路由器获取最新产品版固件失败，请确认路由器上已提供 esp32cam-product-latest.bin。";
+      setupOtaStatus.textContent = isProduct
+        ? "从路由器获取最新产品版固件失败，请确认路由器上已提供 esp32cam-product-latest.bin。"
+        : "从路由器获取最新极客版固件失败，请确认路由器上已提供 esp32cam-latest.bin。";
       setupOtaStatus.style.color = "#f87171";
       return;
     }
@@ -310,9 +319,15 @@
     });
   }
 
-  if (setupOtaBtn && setupOtaStatus) {
-    setupOtaBtn.addEventListener("click", () => {
-      runSetupOtaUpgrade();
+  if (setupOtaProductBtn && setupOtaStatus) {
+    setupOtaProductBtn.addEventListener("click", () => {
+      runSetupOtaUpgrade("product");
+    });
+  }
+
+  if (setupOtaGeekBtn && setupOtaStatus) {
+    setupOtaGeekBtn.addEventListener("click", () => {
+      runSetupOtaUpgrade("geek");
     });
   }
 
