@@ -9,6 +9,16 @@ body {
   background: #0f172a;
   color: #e5e7eb;
   font-size: 14px; /* 全局基础字号 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 .top-bar {

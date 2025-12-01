@@ -1659,18 +1659,20 @@
   });
 
   if (btnGimbalUp && btnGimbalDown && btnGimbalLeft && btnGimbalRight) {
-    bindGimbalButton(btnGimbalUp, 0, GIMBAL_STEP);
-    bindGimbalButton(btnGimbalDown, 0, -GIMBAL_STEP);
-    bindGimbalButton(btnGimbalLeft, -GIMBAL_STEP, 0);
-    bindGimbalButton(btnGimbalRight, GIMBAL_STEP, 0);
+    // 反转云台方向：按“上”实际上向下调节，按“左”实际上向右调节
+    bindGimbalButton(btnGimbalUp, 0, -GIMBAL_STEP);
+    bindGimbalButton(btnGimbalDown, 0, GIMBAL_STEP);
+    bindGimbalButton(btnGimbalLeft, GIMBAL_STEP, 0);
+    bindGimbalButton(btnGimbalRight, -GIMBAL_STEP, 0);
   }
 
   // 覆盖在视频上的云台控制按钮
   if (ovGimbalUp && ovGimbalDown && ovGimbalLeft && ovGimbalRight && ovGimbalCenter) {
-    bindGimbalButton(ovGimbalUp, 0, GIMBAL_STEP);
-    bindGimbalButton(ovGimbalDown, 0, -GIMBAL_STEP);
-    bindGimbalButton(ovGimbalLeft, -GIMBAL_STEP, 0);
-    bindGimbalButton(ovGimbalRight, GIMBAL_STEP, 0);
+    // 覆盖按钮同样采用反向映射
+    bindGimbalButton(ovGimbalUp, 0, -GIMBAL_STEP);
+    bindGimbalButton(ovGimbalDown, 0, GIMBAL_STEP);
+    bindGimbalButton(ovGimbalLeft, GIMBAL_STEP, 0);
+    bindGimbalButton(ovGimbalRight, -GIMBAL_STEP, 0);
     ovGimbalCenter.addEventListener("click", () => centerGimbal());
   }
 
@@ -1746,20 +1748,20 @@
     const stepOnce = () => {
       switch (code) {
         case "ArrowUp":
-          // 云台抬头
-          adjustGimbal(0, GIMBAL_STEP);
-          break;
-        case "ArrowDown":
-          // 云台低头
+          // 反向控制：按上键时实际向下调节
           adjustGimbal(0, -GIMBAL_STEP);
           break;
+        case "ArrowDown":
+          // 反向控制：按下键时实际向上调节
+          adjustGimbal(0, GIMBAL_STEP);
+          break;
         case "ArrowLeft":
-          // 云台向左
-          adjustGimbal(-GIMBAL_STEP, 0);
+          // 反向控制：按左键时实际向右调节
+          adjustGimbal(GIMBAL_STEP, 0);
           break;
         case "ArrowRight":
-          // 云台向右
-          adjustGimbal(GIMBAL_STEP, 0);
+          // 反向控制：按右键时实际向左调节
+          adjustGimbal(-GIMBAL_STEP, 0);
           break;
         default:
           break;
