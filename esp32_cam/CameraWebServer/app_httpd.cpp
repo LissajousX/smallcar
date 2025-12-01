@@ -1564,6 +1564,19 @@ void startCameraServer() {
     .supported_subprotocol = NULL
 #endif
   };
+
+  httpd_uri_t product_version_txt_uri = {
+    .uri = "/version.txt",
+    .method = HTTP_GET,
+    .handler = product_version_txt_handler,
+    .user_ctx = NULL
+#ifdef CONFIG_HTTPD_WS_SUPPORT
+    ,
+    .is_websocket = false,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+#endif
+  };
 #endif
 
   httpd_uri_t snapshot_to_router_uri = {
