@@ -11,9 +11,12 @@
   const statusMsg = document.getElementById("wifi-status-msg");
   const nextSteps = document.getElementById("next-steps");
   const nextStepsText = document.getElementById("next-steps-text");
+  const setupOtaBtn = document.getElementById("setup-ota-btn");
+  const setupOtaStatus = document.getElementById("setup-ota-status");
 
   const WIFI_STATE_POLL_TOTAL_MS = 60000;
   const WIFI_STATE_POLL_INTERVAL_MS = 3000;
+  const DEFAULT_ROUTER_BASE = "http://192.168.31.1:8099";
   let wifiStatePollTimer = null;
   let wifiStatePollDeadline = 0;
   let lastApSsid = "";
@@ -143,6 +146,80 @@
     pollOnce();
   }
 
+  function buildOtaUrlFromLocation() {
+    try {
+      const loc = window.location || {};
+      if (loc.origin) {
+        return loc.origin.replace(/\/+$/, "") + "/ota";
+      }
+      const protocol = loc.protocol || "http:";
+      const host = loc.host || loc.hostname;
+      if (host) {
+        return `${protocol}//${host}/ota`;
+      }
+    } catch (e) {}
+    return "/ota";
+  }
+
+  async function runSetupOtaUpgrade() {
+    if (!setupOtaStatus) {
+      return;
+    }
+    if (typeof fetch !== "function") {
+      setupOtaStatus.textContent = "当前浏览器不支持固件升级（缺少 fetch）。";
+      setupOtaStatus.style.color = "#f87171";
+      return;
+    }
+
+    const otaUrl = buildOtaUrlFromLocation();
+    const routerBase = DEFAULT_ROUTER_BASE;
+    const firmwareUrl = `${routerBase}/firmware/product/esp32cam-product-latest.bin`;
+
+    const ok = window.confirm(
+      `确定要从 ${firmwareUrl} 获取最新产品版固件并刷写到当前 ESP32-CAM 吗？\n升级过程中请勿断电/刷新页面。`,
+    );
+    if (!ok) {
+      setupOtaStatus.textContent = "已取消从路由器一键升级。";
+      setupOtaStatus.style.color = "";
+      return;
+    }
+
+    setupOtaStatus.textContent = "正在从路由器获取最新产品版固件...";
+    setupOtaStatus.style.color = "#facc15";
+
+    let fwBlob;
+    try {
+      const resp = await fetch(firmwareUrl, { cache: "no-store" });
+      if (!resp.ok) {
+        throw new Error("bad status " + resp.status);
+      }
+      fwBlob = await resp.blob();
+    } catch (e) {
+      setupOtaStatus.textContent =
+        "从路由器获取最新产品版固件失败，请确认路由器上已提供 esp32cam-product-latest.bin。";
+      setupOtaStatus.style.color = "#f87171";
+      return;
+    }
+
+    setupOtaStatus.textContent =
+      "已获取最新固件，正在通过 WiFi 推送到 ESP32-CAM...";
+    setupOtaStatus.style.color = "#facc15";
+
+    try {
+      await fetch(otaUrl, {
+        method: "POST",
+        body: fwBlob,
+      });
+      setupOtaStatus.textContent =
+        "升级请求已发送，设备将自动重启，请稍等片刻后重新连接。";
+      setupOtaStatus.style.color = "#34d399";
+    } catch (e) {
+      setupOtaStatus.textContent =
+        "从路由器推送固件到 ESP32-CAM 失败，请检查网络连接。";
+      setupOtaStatus.style.color = "#f87171";
+    }
+  }
+
   async function scanNetworks() {
     if (!ssidSelect || typeof fetch !== "function") {
       return;
@@ -230,6 +307,12 @@
   if (saveBtn) {
     saveBtn.addEventListener("click", () => {
       saveConfig();
+    });
+  }
+
+  if (setupOtaBtn && setupOtaStatus) {
+    setupOtaBtn.addEventListener("click", () => {
+      runSetupOtaUpgrade();
     });
   }
 

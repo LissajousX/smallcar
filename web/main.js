@@ -271,6 +271,13 @@
       snapshotUploadStatus.style.display = "none";
     }
 
+    if (camAdvancedBtn) {
+      camAdvancedBtn.style.display = "none";
+    }
+    if (camAdvancedModal) {
+      camAdvancedModal.style.display = "none";
+    }
+
     try {
       const serviceIcons = document.querySelector(".status-service-icons");
       if (serviceIcons) {
