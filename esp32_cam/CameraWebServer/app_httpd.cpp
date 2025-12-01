@@ -1377,6 +1377,10 @@ static esp_err_t product_favicon_svg_handler(httpd_req_t *req) {
 static esp_err_t product_placeholder_video_svg_handler(httpd_req_t *req) {
   return send_gz_asset(req, "image/svg+xml", product_placeholder_video_svg_gz, product_placeholder_video_svg_gz_len);
 }
+
+static esp_err_t product_version_txt_handler(httpd_req_t *req) {
+  return send_gz_asset(req, "text/plain", product_version_txt_gz, product_version_txt_gz_len);
+}
 #endif
 
 static esp_err_t index_handler(httpd_req_t *req) {
@@ -1469,9 +1473,7 @@ void startCameraServer() {
     .supported_subprotocol = NULL
 #endif
   };
-#endif
 
-#if SMALLCAR_IS_PRODUCT
   httpd_uri_t product_setup_uri = {
     .uri = "/setup.html",
     .method = HTTP_GET,
@@ -1768,6 +1770,7 @@ void startCameraServer() {
     httpd_register_uri_handler(camera_httpd, &product_config_js_uri);
     httpd_register_uri_handler(camera_httpd, &product_favicon_svg_uri);
     httpd_register_uri_handler(camera_httpd, &product_placeholder_video_svg_uri);
+    httpd_register_uri_handler(camera_httpd, &product_version_txt_uri);
 #endif
     httpd_register_uri_handler(camera_httpd, &bmp_uri);
 

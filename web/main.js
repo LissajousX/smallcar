@@ -690,20 +690,20 @@
       return;
     }
     if (typeof fetch !== "function") {
-      alert("当前小车通过自带热点工作，如需配置家庭 Wi‑Fi，请点击右上角的“Wifi配网”按钮。");
+      alert("当前小车通过自带热点工作，如需配置家庭 Wi‑Fi，请点击“Wifi配网”按钮。");
       return;
     }
     try {
       const resp = await fetch("/wifi_state", { cache: "no-store" });
       if (!resp.ok) {
-        alert("当前小车可能尚未成功接入家庭 Wi‑Fi，如需配置，请点击右上角的“Wifi配网”按钮。");
+        alert("当前小车可能尚未成功接入家庭 Wi‑Fi，如需配置，请点击“Wifi配网”按钮。");
         return;
       }
       const data = await resp.json();
       const staConfigured = !!data.sta_configured;
       const staConnected = !!data.sta_connected;
       if (!staConfigured || !staConnected) {
-        alert("当前小车尚未成功接入家庭 Wi‑Fi，如需配置，请点击右上角的“Wifi配网”按钮。");
+        alert("当前小车尚未成功接入家庭 Wi‑Fi，如需配置，请点击的“Wifi配网”按钮。");
       }
     } catch (e) {}
   }

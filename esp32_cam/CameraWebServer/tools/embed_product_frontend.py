@@ -34,6 +34,7 @@ ASSETS: List[Tuple[str, str]] = [
     ("product_config_js_gz", "config.js"),
     ("product_favicon_svg_gz", "favicon.svg"),
     ("product_placeholder_video_svg_gz", "placeholder-video.svg"),
+    ("product_version_txt_gz", "version.txt"),
 ]
 
 
