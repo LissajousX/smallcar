@@ -792,6 +792,31 @@
     }
   }
 
+  function computeBatteryPercentFromMv(mv) {
+    const FULL_MV = 12300;
+    const EMPTY_MV = 10500;
+
+    if (typeof mv !== "number" || !Number.isFinite(mv)) {
+      return null;
+    }
+
+    if (mv <= EMPTY_MV) {
+      return 0;
+    }
+    if (mv >= FULL_MV) {
+      return 100;
+    }
+
+    const p = Math.floor(((mv - EMPTY_MV) * 100) / (FULL_MV - EMPTY_MV));
+    if (p < 0) {
+      return 0;
+    }
+    if (p > 100) {
+      return 100;
+    }
+    return p;
+  }
+
   function setBatteryIndicator(state) {
     if (!batteryIcon || !batteryText) {
       return;
@@ -801,9 +826,6 @@
     let mv = null;
     let ok = false;
 
-    if (state && typeof state.percent === "number" && state.percent >= 0) {
-      percent = state.percent;
-    }
     if (state && typeof state.mv === "number" && state.mv >= 0) {
       mv = state.mv;
     }
@@ -828,17 +850,26 @@
       cls = "battery-icon--error";
       text = "--%";
       title = "无法获取电池电量";
-    } else if (percent != null) {
-      text = `${percent}%`;
-      if (percent <= 20) {
-        cls = "battery-icon--low";
-      } else {
-        cls = "battery-icon--ok";
-      }
+    } else {
       if (mv != null) {
-        title = `电压 ${mv} mV，约 ${percent}%`;
-      } else {
-        title = `电量约 ${percent}%`;
+        percent = computeBatteryPercentFromMv(mv);
+      } else if (state && typeof state.percent === "number" && state.percent >= 0) {
+        // 兼容旧固件：没有 mv 时退回使用固件自带百分比
+        percent = state.percent;
+      }
+
+      if (percent != null) {
+        text = `${percent}%`;
+        if (percent <= 20) {
+          cls = "battery-icon--low";
+        } else {
+          cls = "battery-icon--ok";
+        }
+        if (mv != null) {
+          title = `电压 ${mv} mV，约 ${percent}%`;
+        } else {
+          title = `电量约 ${percent}%`;
+        }
       }
     }
 
